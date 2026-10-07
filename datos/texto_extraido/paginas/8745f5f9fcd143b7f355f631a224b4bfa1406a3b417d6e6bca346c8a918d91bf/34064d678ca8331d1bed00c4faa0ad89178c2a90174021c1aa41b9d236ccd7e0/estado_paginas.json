@@ -1,0 +1,28 @@
+{
+  "source": "C:\\IA_UNAMBA\\datos\\pdfs\\8466756-resolucion-n-193-diga-unamba_bdd5365da2ea.pdf",
+  "sha256": "34064d678ca8331d1bed00c4faa0ad89178c2a90174021c1aa41b9d236ccd7e0",
+  "total_pages": 5,
+  "paginas": {
+    "1": {
+      "estado": "ok",
+      "metodo": "ocr"
+    },
+    "2": {
+      "estado": "ok",
+      "metodo": "ocr"
+    },
+    "3": {
+      "estado": "ok",
+      "metodo": "ocr"
+    },
+    "4": {
+      "estado": "ok",
+      "metodo": "ocr"
+    },
+    "5": {
+      "estado": "ok",
+      "metodo": "ocr"
+    }
+  },
+  "pendientes": []
+}

@@ -1,0 +1,15 @@
+{
+  "source": "C:\\IA_UNAMBA\\datos\\pdfs\\8428715-resolucion-directoral-n-169-diga-unamba_102a373ee5be.pdf",
+  "source_id": "563753fd1ffba85b1c7d05ff2404794b6d12df9aea0a2db4fc68677afef399bc",
+  "sha256": "01f7e6b1ca7923d76bdfd85dcda12ca5a9b8368450d29bcebfd2d9b3f8cf1dfa",
+  "total_pages": 6,
+  "total_parts": 1,
+  "partes": [
+    {
+      "ruta": "C:\\IA_UNAMBA\\datos\\texto_extraido\\partes_pdf\\563753fd1ffba85b1c7d05ff2404794b6d12df9aea0a2db4fc68677afef399bc\\01f7e6b1ca7923d76bdfd85dcda12ca5a9b8368450d29bcebfd2d9b3f8cf1dfa\\paginas_00001_00006.pdf",
+      "pagina_inicio": 1,
+      "pagina_fin": 6,
+      "parte": 1
+    }
+  ]
+}

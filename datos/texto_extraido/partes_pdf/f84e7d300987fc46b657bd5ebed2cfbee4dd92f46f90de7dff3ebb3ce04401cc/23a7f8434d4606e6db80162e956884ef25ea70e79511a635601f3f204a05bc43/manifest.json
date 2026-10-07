@@ -1,0 +1,15 @@
+{
+  "source": "C:\\IA_UNAMBA\\datos\\pdfs\\8460864-resolucion-n-191-2026-diga-unamba_dbc171015ff4.pdf",
+  "source_id": "f84e7d300987fc46b657bd5ebed2cfbee4dd92f46f90de7dff3ebb3ce04401cc",
+  "sha256": "23a7f8434d4606e6db80162e956884ef25ea70e79511a635601f3f204a05bc43",
+  "total_pages": 6,
+  "total_parts": 1,
+  "partes": [
+    {
+      "ruta": "C:\\IA_UNAMBA\\datos\\texto_extraido\\partes_pdf\\f84e7d300987fc46b657bd5ebed2cfbee4dd92f46f90de7dff3ebb3ce04401cc\\23a7f8434d4606e6db80162e956884ef25ea70e79511a635601f3f204a05bc43\\paginas_00001_00006.pdf",
+      "pagina_inicio": 1,
+      "pagina_fin": 6,
+      "parte": 1
+    }
+  ]
+}

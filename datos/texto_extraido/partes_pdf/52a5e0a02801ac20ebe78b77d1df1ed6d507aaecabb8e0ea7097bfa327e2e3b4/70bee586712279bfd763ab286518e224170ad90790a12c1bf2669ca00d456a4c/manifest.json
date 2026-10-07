@@ -1,0 +1,15 @@
+{
+  "source": "C:\\IA_UNAMBA\\datos\\pdfs\\8629576-resolucion-directoral-n-209-2026-diga-unamba_6fa86c03f963.pdf",
+  "source_id": "52a5e0a02801ac20ebe78b77d1df1ed6d507aaecabb8e0ea7097bfa327e2e3b4",
+  "sha256": "70bee586712279bfd763ab286518e224170ad90790a12c1bf2669ca00d456a4c",
+  "total_pages": 9,
+  "total_parts": 1,
+  "partes": [
+    {
+      "ruta": "C:\\IA_UNAMBA\\datos\\texto_extraido\\partes_pdf\\52a5e0a02801ac20ebe78b77d1df1ed6d507aaecabb8e0ea7097bfa327e2e3b4\\70bee586712279bfd763ab286518e224170ad90790a12c1bf2669ca00d456a4c\\paginas_00001_00009.pdf",
+      "pagina_inicio": 1,
+      "pagina_fin": 9,
+      "parte": 1
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "source": "C:\\IA_UNAMBA\\datos\\pdfs\\8629456-resolucion-directoral-n-199-2026-diga-unamba_66efbb03d14d.pdf",
+  "sha256": "1532dc0669cef5fba391f42c19076458fd260b370426a1eac269695221a779a6",
+  "total_pages": 3,
+  "paginas": {
+    "1": {
+      "estado": "ok",
+      "metodo": "ocr"
+    },
+    "2": {
+      "estado": "ok",
+      "metodo": "ocr"
+    },
+    "3": {
+      "estado": "ok",
+      "metodo": "ocr"
+    }
+  },
+  "pendientes": []
+}

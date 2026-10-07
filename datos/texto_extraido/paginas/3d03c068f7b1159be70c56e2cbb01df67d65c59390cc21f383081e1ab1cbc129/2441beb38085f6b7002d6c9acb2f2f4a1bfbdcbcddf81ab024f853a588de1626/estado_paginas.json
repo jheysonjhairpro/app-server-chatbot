@@ -1,0 +1,24 @@
+{
+  "source": "C:\\IA_UNAMBA\\datos\\pdfs\\8372805-resolucion-directoral-n-0160-2026-diga-unamba-2-1_0bbae2044c52.pdf",
+  "sha256": "2441beb38085f6b7002d6c9acb2f2f4a1bfbdcbcddf81ab024f853a588de1626",
+  "total_pages": 4,
+  "paginas": {
+    "1": {
+      "estado": "ok",
+      "metodo": "ocr"
+    },
+    "2": {
+      "estado": "ok",
+      "metodo": "ocr"
+    },
+    "3": {
+      "estado": "ok",
+      "metodo": "ocr"
+    },
+    "4": {
+      "estado": "ok",
+      "metodo": "ocr"
+    }
+  },
+  "pendientes": []
+}

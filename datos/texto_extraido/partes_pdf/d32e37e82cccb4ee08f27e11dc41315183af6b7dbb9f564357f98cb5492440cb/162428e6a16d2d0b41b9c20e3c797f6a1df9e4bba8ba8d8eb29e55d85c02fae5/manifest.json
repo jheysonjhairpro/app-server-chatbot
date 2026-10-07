@@ -1,0 +1,15 @@
+{
+  "source": "C:\\IA_UNAMBA\\datos\\pdfs\\8629568-resolucion-directoral-n-208-2026-diga-unamba_7df66f924273.pdf",
+  "source_id": "d32e37e82cccb4ee08f27e11dc41315183af6b7dbb9f564357f98cb5492440cb",
+  "sha256": "162428e6a16d2d0b41b9c20e3c797f6a1df9e4bba8ba8d8eb29e55d85c02fae5",
+  "total_pages": 5,
+  "total_parts": 1,
+  "partes": [
+    {
+      "ruta": "C:\\IA_UNAMBA\\datos\\texto_extraido\\partes_pdf\\d32e37e82cccb4ee08f27e11dc41315183af6b7dbb9f564357f98cb5492440cb\\162428e6a16d2d0b41b9c20e3c797f6a1df9e4bba8ba8d8eb29e55d85c02fae5\\paginas_00001_00005.pdf",
+      "pagina_inicio": 1,
+      "pagina_fin": 5,
+      "parte": 1
+    }
+  ]
+}

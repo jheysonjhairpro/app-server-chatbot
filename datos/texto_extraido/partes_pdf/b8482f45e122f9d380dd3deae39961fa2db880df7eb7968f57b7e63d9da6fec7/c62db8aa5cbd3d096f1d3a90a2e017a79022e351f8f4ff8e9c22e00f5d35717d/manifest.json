@@ -1,0 +1,15 @@
+{
+  "source": "C:\\IA_UNAMBA\\datos\\pdfs\\8442327-resolucion-directoral-n-180-diga-unamba_3e4790e2cfe0.pdf",
+  "source_id": "b8482f45e122f9d380dd3deae39961fa2db880df7eb7968f57b7e63d9da6fec7",
+  "sha256": "c62db8aa5cbd3d096f1d3a90a2e017a79022e351f8f4ff8e9c22e00f5d35717d",
+  "total_pages": 6,
+  "total_parts": 1,
+  "partes": [
+    {
+      "ruta": "C:\\IA_UNAMBA\\datos\\texto_extraido\\partes_pdf\\b8482f45e122f9d380dd3deae39961fa2db880df7eb7968f57b7e63d9da6fec7\\c62db8aa5cbd3d096f1d3a90a2e017a79022e351f8f4ff8e9c22e00f5d35717d\\paginas_00001_00006.pdf",
+      "pagina_inicio": 1,
+      "pagina_fin": 6,
+      "parte": 1
+    }
+  ]
+}

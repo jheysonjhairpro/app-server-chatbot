@@ -1,0 +1,15 @@
+{
+  "source": "C:\\IA_UNAMBA\\datos\\pdfs\\8428738-resoluci-on-directoral-n-170-2026-diga-unamba_7569094e1e8b.pdf",
+  "source_id": "71ed4ff1eb1115aa7d391ef980f32a84693f6212a8ae2a2329e44e708c60d75b",
+  "sha256": "89847a99fdc1ebecf3d4fb4f26d5f31d19545762491487660f8467a759152df0",
+  "total_pages": 8,
+  "total_parts": 1,
+  "partes": [
+    {
+      "ruta": "C:\\IA_UNAMBA\\datos\\texto_extraido\\partes_pdf\\71ed4ff1eb1115aa7d391ef980f32a84693f6212a8ae2a2329e44e708c60d75b\\89847a99fdc1ebecf3d4fb4f26d5f31d19545762491487660f8467a759152df0\\paginas_00001_00008.pdf",
+      "pagina_inicio": 1,
+      "pagina_fin": 8,
+      "parte": 1
+    }
+  ]
+}

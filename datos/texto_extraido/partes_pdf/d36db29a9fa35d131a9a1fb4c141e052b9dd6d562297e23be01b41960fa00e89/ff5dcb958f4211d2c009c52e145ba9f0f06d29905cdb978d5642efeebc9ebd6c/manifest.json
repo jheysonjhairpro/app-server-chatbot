@@ -1,0 +1,15 @@
+{
+  "source": "C:\\IA_UNAMBA\\datos\\pdfs\\8340788-resolucion-directoral-n-0142-2026-diga-unamba_7f6a3e903e52.pdf",
+  "source_id": "d36db29a9fa35d131a9a1fb4c141e052b9dd6d562297e23be01b41960fa00e89",
+  "sha256": "ff5dcb958f4211d2c009c52e145ba9f0f06d29905cdb978d5642efeebc9ebd6c",
+  "total_pages": 8,
+  "total_parts": 1,
+  "partes": [
+    {
+      "ruta": "C:\\IA_UNAMBA\\datos\\texto_extraido\\partes_pdf\\d36db29a9fa35d131a9a1fb4c141e052b9dd6d562297e23be01b41960fa00e89\\ff5dcb958f4211d2c009c52e145ba9f0f06d29905cdb978d5642efeebc9ebd6c\\paginas_00001_00008.pdf",
+      "pagina_inicio": 1,
+      "pagina_fin": 8,
+      "parte": 1
+    }
+  ]
+}

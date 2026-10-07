@@ -1,0 +1,15 @@
+{
+  "source": "C:\\IA_UNAMBA\\datos\\pdfs\\8558049-resolucion-directoral-n-213-2026-diga-unamba_1b156100498a.pdf",
+  "source_id": "d3436201fade8ac3511af25ad52588e07abe271a9a3f421f8abc7c011a9c6887",
+  "sha256": "8bfb5808d980e90444936c4164e263f1adc234471b35972f431bc10c7f82a262",
+  "total_pages": 12,
+  "total_parts": 1,
+  "partes": [
+    {
+      "ruta": "C:\\IA_UNAMBA\\datos\\texto_extraido\\partes_pdf\\d3436201fade8ac3511af25ad52588e07abe271a9a3f421f8abc7c011a9c6887\\8bfb5808d980e90444936c4164e263f1adc234471b35972f431bc10c7f82a262\\paginas_00001_00012.pdf",
+      "pagina_inicio": 1,
+      "pagina_fin": 12,
+      "parte": 1
+    }
+  ]
+}

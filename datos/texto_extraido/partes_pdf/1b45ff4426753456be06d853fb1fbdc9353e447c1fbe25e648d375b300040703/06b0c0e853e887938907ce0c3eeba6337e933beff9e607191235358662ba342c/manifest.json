@@ -1,0 +1,15 @@
+{
+  "source": "C:\\IA_UNAMBA\\datos\\pdfs\\8442345-resolucion-directoral-n-187-diga-unamba_7210924fd2ee.pdf",
+  "source_id": "1b45ff4426753456be06d853fb1fbdc9353e447c1fbe25e648d375b300040703",
+  "sha256": "06b0c0e853e887938907ce0c3eeba6337e933beff9e607191235358662ba342c",
+  "total_pages": 6,
+  "total_parts": 1,
+  "partes": [
+    {
+      "ruta": "C:\\IA_UNAMBA\\datos\\texto_extraido\\partes_pdf\\1b45ff4426753456be06d853fb1fbdc9353e447c1fbe25e648d375b300040703\\06b0c0e853e887938907ce0c3eeba6337e933beff9e607191235358662ba342c\\paginas_00001_00006.pdf",
+      "pagina_inicio": 1,
+      "pagina_fin": 6,
+      "parte": 1
+    }
+  ]
+}

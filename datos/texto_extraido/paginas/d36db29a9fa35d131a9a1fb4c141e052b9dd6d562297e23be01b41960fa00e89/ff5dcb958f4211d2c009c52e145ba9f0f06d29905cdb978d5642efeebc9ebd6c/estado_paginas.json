@@ -1,0 +1,42 @@
+{
+  "source": "C:\\IA_UNAMBA\\datos\\pdfs\\8340788-resolucion-directoral-n-0142-2026-diga-unamba_7f6a3e903e52.pdf",
+  "sha256": "ff5dcb958f4211d2c009c52e145ba9f0f06d29905cdb978d5642efeebc9ebd6c",
+  "total_pages": 8,
+  "paginas": {
+    "1": {
+      "estado": "ok",
+      "metodo": "ocr"
+    },
+    "2": {
+      "estado": "ok",
+      "metodo": "secciones"
+    },
+    "3": {
+      "estado": "ok",
+      "metodo": "ocr"
+    },
+    "4": {
+      "estado": "pendiente",
+      "detalle": "RuntimeError: OCR, intento 3: OCRIncompleto: OCR sin texto en una imagen con contenido visible."
+    },
+    "5": {
+      "estado": "ok",
+      "metodo": "ocr"
+    },
+    "6": {
+      "estado": "ok",
+      "metodo": "ocr"
+    },
+    "7": {
+      "estado": "ok",
+      "metodo": "ocr"
+    },
+    "8": {
+      "estado": "ok",
+      "metodo": "ocr"
+    }
+  },
+  "pendientes": [
+    4
+  ]
+}

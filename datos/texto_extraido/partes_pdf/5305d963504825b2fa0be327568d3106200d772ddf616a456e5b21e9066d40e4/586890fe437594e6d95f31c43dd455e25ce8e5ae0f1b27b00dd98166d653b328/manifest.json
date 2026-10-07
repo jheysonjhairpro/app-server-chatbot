@@ -1,0 +1,15 @@
+{
+  "source": "C:\\IA_UNAMBA\\datos\\pdfs\\8629537-resolucion-directoral-n-207-2026-diga-unamba_33040352e7a6.pdf",
+  "source_id": "5305d963504825b2fa0be327568d3106200d772ddf616a456e5b21e9066d40e4",
+  "sha256": "586890fe437594e6d95f31c43dd455e25ce8e5ae0f1b27b00dd98166d653b328",
+  "total_pages": 5,
+  "total_parts": 1,
+  "partes": [
+    {
+      "ruta": "C:\\IA_UNAMBA\\datos\\texto_extraido\\partes_pdf\\5305d963504825b2fa0be327568d3106200d772ddf616a456e5b21e9066d40e4\\586890fe437594e6d95f31c43dd455e25ce8e5ae0f1b27b00dd98166d653b328\\paginas_00001_00005.pdf",
+      "pagina_inicio": 1,
+      "pagina_fin": 5,
+      "parte": 1
+    }
+  ]
+}

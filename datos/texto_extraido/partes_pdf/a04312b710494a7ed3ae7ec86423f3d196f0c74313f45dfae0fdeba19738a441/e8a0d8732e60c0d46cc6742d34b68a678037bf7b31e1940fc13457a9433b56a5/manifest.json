@@ -1,0 +1,15 @@
+{
+  "source": "C:\\IA_UNAMBA\\datos\\pdfs\\8466759-resolucion-n-194-diga-unamba_5ca095fdd82c.pdf",
+  "source_id": "a04312b710494a7ed3ae7ec86423f3d196f0c74313f45dfae0fdeba19738a441",
+  "sha256": "e8a0d8732e60c0d46cc6742d34b68a678037bf7b31e1940fc13457a9433b56a5",
+  "total_pages": 5,
+  "total_parts": 1,
+  "partes": [
+    {
+      "ruta": "C:\\IA_UNAMBA\\datos\\texto_extraido\\partes_pdf\\a04312b710494a7ed3ae7ec86423f3d196f0c74313f45dfae0fdeba19738a441\\e8a0d8732e60c0d46cc6742d34b68a678037bf7b31e1940fc13457a9433b56a5\\paginas_00001_00005.pdf",
+      "pagina_inicio": 1,
+      "pagina_fin": 5,
+      "parte": 1
+    }
+  ]
+}

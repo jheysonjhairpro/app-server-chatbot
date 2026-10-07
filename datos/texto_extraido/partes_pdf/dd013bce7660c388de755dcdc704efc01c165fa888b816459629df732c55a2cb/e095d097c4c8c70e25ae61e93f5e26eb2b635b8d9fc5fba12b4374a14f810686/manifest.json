@@ -1,0 +1,15 @@
+{
+  "source": "C:\\IA_UNAMBA\\datos\\pdfs\\8628182-resolucion-directoral-n-177-2026-diga-unamba_4a0f2b25f5b4.pdf",
+  "source_id": "dd013bce7660c388de755dcdc704efc01c165fa888b816459629df732c55a2cb",
+  "sha256": "e095d097c4c8c70e25ae61e93f5e26eb2b635b8d9fc5fba12b4374a14f810686",
+  "total_pages": 5,
+  "total_parts": 1,
+  "partes": [
+    {
+      "ruta": "C:\\IA_UNAMBA\\datos\\texto_extraido\\partes_pdf\\dd013bce7660c388de755dcdc704efc01c165fa888b816459629df732c55a2cb\\e095d097c4c8c70e25ae61e93f5e26eb2b635b8d9fc5fba12b4374a14f810686\\paginas_00001_00005.pdf",
+      "pagina_inicio": 1,
+      "pagina_fin": 5,
+      "parte": 1
+    }
+  ]
+}

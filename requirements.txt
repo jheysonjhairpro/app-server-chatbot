@@ -1,0 +1,4 @@
+flask
+chromadb
+ollama
+crawl4ai

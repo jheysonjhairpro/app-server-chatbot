@@ -1,0 +1,48 @@
+{
+  "source": "C:\\IA_UNAMBA\\datos\\pdfs\\8480054-resolucion-directoral-0192-2026-diga-unamba_7082374eeef1.pdf",
+  "sha256": "480172d75c14de3c831921b4f8a800ccbf6ee68e247c2f455d288c2a313ec25f",
+  "total_pages": 10,
+  "paginas": {
+    "1": {
+      "estado": "ok",
+      "metodo": "ocr"
+    },
+    "2": {
+      "estado": "ok",
+      "metodo": "ocr"
+    },
+    "3": {
+      "estado": "ok",
+      "metodo": "ocr"
+    },
+    "4": {
+      "estado": "ok",
+      "metodo": "ocr"
+    },
+    "5": {
+      "estado": "ok",
+      "metodo": "ocr"
+    },
+    "6": {
+      "estado": "ok",
+      "metodo": "ocr"
+    },
+    "7": {
+      "estado": "ok",
+      "metodo": "ocr"
+    },
+    "8": {
+      "estado": "ok",
+      "metodo": "ocr"
+    },
+    "9": {
+      "estado": "ok",
+      "metodo": "ocr"
+    },
+    "10": {
+      "estado": "ok",
+      "metodo": "ocr"
+    }
+  },
+  "pendientes": []
+}

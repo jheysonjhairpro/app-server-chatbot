@@ -1,0 +1,15 @@
+{
+  "source": "C:\\IA_UNAMBA\\datos\\pdfs\\8629225-resolucion-directoral-n-0195-2026-diga-unamba_3acc29e34051.pdf",
+  "source_id": "788b7120d78379890a6988b47e40be87c8805286ca9c50c623d9353b0759462e",
+  "sha256": "604ec79a03c95c47b1680ef9c5e20dc1492d3b129ea5ad81578b5e472c56411d",
+  "total_pages": 4,
+  "total_parts": 1,
+  "partes": [
+    {
+      "ruta": "C:\\IA_UNAMBA\\datos\\texto_extraido\\partes_pdf\\788b7120d78379890a6988b47e40be87c8805286ca9c50c623d9353b0759462e\\604ec79a03c95c47b1680ef9c5e20dc1492d3b129ea5ad81578b5e472c56411d\\paginas_00001_00004.pdf",
+      "pagina_inicio": 1,
+      "pagina_fin": 4,
+      "parte": 1
+    }
+  ]
+}

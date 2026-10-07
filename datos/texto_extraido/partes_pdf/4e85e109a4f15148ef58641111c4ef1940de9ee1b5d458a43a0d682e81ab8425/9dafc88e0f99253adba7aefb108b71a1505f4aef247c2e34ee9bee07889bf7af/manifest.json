@@ -1,0 +1,15 @@
+{
+  "source": "C:\\IA_UNAMBA\\datos\\pdfs\\8629450-resolucion-directoral-n-198-2026-diga-unamba_fc68d8d4b0ed.pdf",
+  "source_id": "4e85e109a4f15148ef58641111c4ef1940de9ee1b5d458a43a0d682e81ab8425",
+  "sha256": "9dafc88e0f99253adba7aefb108b71a1505f4aef247c2e34ee9bee07889bf7af",
+  "total_pages": 5,
+  "total_parts": 1,
+  "partes": [
+    {
+      "ruta": "C:\\IA_UNAMBA\\datos\\texto_extraido\\partes_pdf\\4e85e109a4f15148ef58641111c4ef1940de9ee1b5d458a43a0d682e81ab8425\\9dafc88e0f99253adba7aefb108b71a1505f4aef247c2e34ee9bee07889bf7af\\paginas_00001_00005.pdf",
+      "pagina_inicio": 1,
+      "pagina_fin": 5,
+      "parte": 1
+    }
+  ]
+}

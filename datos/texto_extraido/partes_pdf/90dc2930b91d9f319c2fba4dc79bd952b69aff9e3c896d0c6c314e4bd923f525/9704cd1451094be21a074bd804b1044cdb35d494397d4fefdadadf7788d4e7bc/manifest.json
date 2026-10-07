@@ -1,0 +1,15 @@
+{
+  "source": "C:\\IA_UNAMBA\\datos\\pdfs\\8437482-resolucion-directoral-n-184-subvencion-economica_4962878e7c5b.pdf",
+  "source_id": "90dc2930b91d9f319c2fba4dc79bd952b69aff9e3c896d0c6c314e4bd923f525",
+  "sha256": "9704cd1451094be21a074bd804b1044cdb35d494397d4fefdadadf7788d4e7bc",
+  "total_pages": 6,
+  "total_parts": 1,
+  "partes": [
+    {
+      "ruta": "C:\\IA_UNAMBA\\datos\\texto_extraido\\partes_pdf\\90dc2930b91d9f319c2fba4dc79bd952b69aff9e3c896d0c6c314e4bd923f525\\9704cd1451094be21a074bd804b1044cdb35d494397d4fefdadadf7788d4e7bc\\paginas_00001_00006.pdf",
+      "pagina_inicio": 1,
+      "pagina_fin": 6,
+      "parte": 1
+    }
+  ]
+}
