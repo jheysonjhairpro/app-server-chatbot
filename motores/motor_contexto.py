@@ -50,7 +50,7 @@ class ReferenciaDocumento:
 TIPOS_DOCUMENTO = r"resolucion|informe|oficio|directiva|ley"
 REFERENCIA = re.compile(
     r"\b(" + TIPOS_DOCUMENTO + r")\b"
-    r"(?:[\s_-]+(?:rectoral|tecnico|tecnica|de|del|consejo|universitario|directivo|ministerial|jefatural)){0,5}"
+    r"(?:[\s_-]+(?:rectoral|directoral|tecnico|tecnica|de|del|consejo|universitario|directivo|ministerial|jefatural)){0,5}"
     r"[\s_(-]*(?:(?:numero|nro\.?|num\.?|n[.°ºo]*)(?:[\s°º._(-]*))?"
     r"(\d{1,6})(?!\d)"
     r"(?:\s*(?:[-/–]|del?\s+(?:ano\s+)?)\s*(\d{4})(?!\d))?"
@@ -58,7 +58,10 @@ REFERENCIA = re.compile(
 
 
 def referencias_documentales(texto):
-    q = normalizar(texto)
+    q = normalizar(texto).replace("_", " ")
+    # Algunos nombres publicados separan el cero inicial: n-0-218-2026.
+    q = re.sub(r"(?<!\d)0+\s*-\s*(\d{1,4})\s*-\s*((?:19|20|21)\d{2})(?!\d)",
+               r"\1-\2", q)
     explicitas = [ReferenciaDocumento(m[1], int(m[2]), m[3] or "") for m in REFERENCIA.finditer(q)]
     if explicitas:
         return list(dict.fromkeys(explicitas))
@@ -160,7 +163,9 @@ class Catalogo:
         self.identidades = {}
         self.por_numero = defaultdict(list)
         for source, nombre in self.archivos:
-            referencias = referencias_documentales(titulos.get(source) or Path(nombre).stem)
+            referencias = list(dict.fromkeys(
+                referencias_documentales(titulos.get(source, ""))
+                + referencias_documentales(Path(nombre).stem)))
             self.identidades[source] = referencias
             for ref in referencias:
                 self.por_numero[ref.numero].append((source, ref))
@@ -201,7 +206,7 @@ class Catalogo:
         if identificadores:
             candidatos = list(dict.fromkeys(s for buscado in identificadores
                 for s, encontrado in self.por_numero.get(buscado.numero, [])
-                if (not buscado.tipo or buscado.tipo == encontrado.tipo) and
+                if (not buscado.tipo or not encontrado.tipo or buscado.tipo == encontrado.tipo) and
                    (not buscado.anio or buscado.anio == encontrado.anio)))
             if len(candidatos) > 1 and len(identificadores) == 1:
                 etiquetas = {s: set(palabras(self.etiqueta(s))) for s in candidatos}
