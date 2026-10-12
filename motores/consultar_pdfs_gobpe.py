@@ -171,13 +171,9 @@ class BuscadorGobPe:
             documentos.setdefault(pagina.source, pagina.nombre)
         print("\nEnlaces oficiales:")
         for nombre in documentos.values():
-            print(f"Buscando en gob.pe: {nombre}...", flush=True)
-            url, motivo = self.buscar(nombre)
+            url, _ = self.buscar(nombre)
             if url:
-                print(f"{nombre}\nPara más información, visita el enlace: {url}")
-            else:
-                print(f"{nombre}: {motivo}")
-                print(f"Puedes revisar el listado oficial: {LISTADO}")
+                print(url)
 
 
 def main():
