@@ -2,3 +2,4 @@ flask
 chromadb
 ollama
 crawl4ai
+beautifulsoup4
