@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>UNAMBA | Información indexada</title>
+  <link rel="stylesheet" href="/web/styles.css">
+  <link rel="stylesheet" href="/web/analysis.css">
+  <script src="/web/app.js" defer></script>
+</head>
+<body>
+  <header><a class="brand" href="/">UNAMBA<span>Repositorio web</span></a><span class="status">Índice local</span></header>
+  <main>
+    <section class="heading"><div><p class="eyebrow">BASE DE CONOCIMIENTO</p><h1>Información indexada</h1></div><a class="api-link" href="/docs">API ↗</a></section>
+    <section class="stats" aria-label="Resumen del índice">
+      <div><span>Páginas guardadas</span><strong id="pages">—</strong></div>
+      <div><span>Documentos enlazados</span><strong id="documents">—</strong></div>
+      <div><span>Categorías</span><strong id="categories">—</strong></div>
+      <div><span>Última revisión</span><strong class="date" id="updated">—</strong></div>
+    </section>
+    <form id="filters" class="filters" role="search">
+      <label class="search">Buscar en el índice<input type="search" id="query" placeholder="Título, dirección o contenido…" maxlength="300"></label>
+      <label>Categoría<select id="category"><option value="">Todas las categorías</option></select></label>
+      <label>Ordenar por<select id="order"><option value="recientes">Última revisión</option><option value="titulo">Título</option><option value="portal">Portal</option><option value="publicacion">Publicación</option><option value="documentos">Documentos enlazados</option><option value="caracteres">Cantidad de texto</option></select></label>
+      <label>Dirección<select id="direction"><option value="desc">Descendente</option><option value="asc">Ascendente</option></select></label>
+      <button class="primary" type="submit">Buscar</button>
+      <details class="advanced" open><summary>Filtros de análisis</summary><div class="filter-grid">
+        <label>Buscar en<select id="field"><option value="todos">Todos los campos</option><option value="titulo">Título</option><option value="url">URL</option><option value="contenido">Contenido</option></select></label>
+        <label>Portal de origen<select id="portal"><option value="">Todos los portales</option></select></label>
+        <label>Documentos enlazados<select id="docs"><option value="todos">Todos</option><option value="con">Con documentos</option><option value="sin">Sin documentos</option><option value="pdf">PDF</option><option value="word">Word</option><option value="excel">Excel / CSV</option></select></label>
+        <label>Calidad de datos<select id="quality"><option value="todos">Todos</option><option value="sin_fecha">Sin fecha de publicación</option><option value="sin_titulo">Sin título</option><option value="vacio">Sin texto</option><option value="breve">Texto breve (&lt; 300 caracteres)</option><option value="titulo_repetido">Título repetido</option><option value="contenido_repetido">Contenido repetido</option></select></label>
+        <label>Fecha de<select id="date-type"><option value="publicacion">Publicación</option><option value="revision">Última revisión</option></select></label>
+        <label>Desde<input id="since" type="date"></label><label>Hasta<input id="until" type="date"></label>
+        <button id="clear" type="button">Limpiar filtros</button>
+      </div></details>
+    </form>
+    <div class="view-toolbar"><div role="group" aria-label="Vista"><button id="cards-view" aria-pressed="true">Lista</button><button id="table-view" aria-pressed="false">Tabla</button></div><button id="export" type="button">Exportar resultados CSV</button><span id="export-status" role="status"></span></div>
+    <p id="filter-error" class="error" role="alert"></p>
+    <div class="workspace">
+      <section class="results" aria-label="Páginas indexadas"><div class="list-heading"><h2>Páginas</h2><span id="count" role="status">Cargando…</span></div><div id="list"></div><nav class="pagination" aria-label="Paginación"><button id="prev" title="Página anterior" aria-label="Página anterior">←</button><span id="pagination"></span><button id="next" title="Página siguiente" aria-label="Página siguiente">→</button></nav></section>
+      <section class="reader" aria-label="Contenido de la página"><div id="detail" aria-live="polite"><div class="empty"><span class="file-symbol">▤</span><h2>Contenido guardado</h2><p>Selecciona una página del índice.</p></div></div></section>
+    </div>
+  </main>
+  <footer>Universidad Nacional Micaela Bastidas de Apurímac <span>Archivo local de fuentes oficiales</span></footer>
+</body>
+</html>

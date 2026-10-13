@@ -4,7 +4,7 @@ import copy
 import chromadb
 import ollama
 
-import config
+import config_docs as config
 import consultar_pdfs as cp
 from consultar_pdfs_gobpe import BuscadorGobPe
 

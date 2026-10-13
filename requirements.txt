@@ -1,5 +1,22 @@
+# Servidor HTTP y API web
 flask
-chromadb
+fastapi>=0.115,<1
+uvicorn>=0.30,<1
+httpx>=0.28,<1
+
+# Modelos, almacenamiento y configuración
 ollama
-crawl4ai
-beautifulsoup4
+chromadb>=1.0,<2
+pydantic>=2.7,<3
+pydantic-settings>=2.7,<3
+
+# Rastreo y extracción HTML
+beautifulsoup4>=4.12,<5
+lxml>=5,<7
+
+# Ingesta de documentos PDF (Poppler se instala por separado)
+pdf2image
+pypdf
+
+# Opcional para rastrear páginas con JavaScript: instalar playwright
+# y ejecutar python -m playwright install chromium. Ver README.md.
