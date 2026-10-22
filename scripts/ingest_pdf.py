@@ -17,14 +17,15 @@ import ollama
 from pdf2image import convert_from_path
 from pypdf import PdfReader, PdfWriter
 import tempfile
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "motores"))
-from motor_contexto import titulo_documental
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from motores.pdf.motor_contexto import titulo_documental
+from configuracion import servidor as config
 
 BASE = Path(__file__).resolve().parent
-OCR_MODEL = "seriouswebby/paddleocr-vl-1.6:latest"
-EMBEDDING_MODEL = "qwen3-embedding:0.6b"
-COLLECTION_NAME = "documentos_unamba_qwen3"
-POPPLER = Path(r"C:\IA_UNAMBA\herramientas\poppler\Library\bin")
+OCR_MODEL = config.OCR_MODEL
+EMBEDDING_MODEL = config.EMBEDDING_MODEL
+COLLECTION_NAME = config.COLECCION_DOCS
+POPPLER = config.PDF_POPPLER_DIR
 
 
 def limpiar(texto):
@@ -372,7 +373,7 @@ def vectores_cache(client, documentos, carpeta, args):
 
 def procesar(path, args, client, collection, poppler):
     relative = path.relative_to(args.docs)
-    source = str(path.resolve())
+    source = relative.as_posix()
     source_id = hashlib.sha256(source.casefold().encode()).hexdigest()
     fingerprint = hash_archivo(path)
     cache = args.output / "paginas" / source_id / fingerprint
@@ -466,13 +467,72 @@ def procesar(path, args, client, collection, poppler):
     return total_chunks
 
 
+def procesar_texto(path, args, client, collection):
+    """Indexa texto completo disponible sin volver a hacer OCR ni usar Internet."""
+    relative = path.relative_to(args.docs)
+    txt = args.output / relative.with_suffix('.txt')
+    reader = PdfReader(str(path))
+    total_pages = len(reader.pages)
+    if not txt.exists():
+        # Un PDF digital puede leerse localmente sin el modelo OCR opcional.
+        pages = [(page.extract_text() or '').strip() for page in reader.pages]
+        if not all(pages):
+            raise ValueError('Falta texto completo. Conservado el OCR parcial; este PDF necesita completar OCR.')
+        text = '\n\n'.join(f'=== PÁGINA {i} ===\n{body}' for i, body in enumerate(pages, 1))
+    else:
+        text = txt.read_text(encoding='utf-8-sig')
+    sections = re.split(r'^=== PÁGINA (\d+) ===\s*\n', text, flags=re.M)
+    numbers = [int(sections[i]) for i in range(1, len(sections), 2)]
+    if numbers != list(range(1, total_pages + 1)):
+        raise ValueError('Texto incompleto o páginas fuera de orden; no se indexa como documento completo.')
+    source = relative.as_posix()
+    source_id = hashlib.sha256(source.casefold().encode()).hexdigest()
+    fingerprint = hash_archivo(path)
+    records = []
+    title = ''
+    for i in range(1, len(sections), 2):
+        page = int(sections[i]); body = sections[i + 1].strip()
+        if not body:
+            raise ValueError(f'Página {page} sin texto ni confirmación de página en blanco.')
+        if not title:
+            title = titulo_documental(body)
+        for chunk, part in enumerate(chunks(body), 1):
+            records.append({'id': f'{source_id}_p{page}_c{chunk}',
+                'document': f'DOCUMENTO: {relative}\nPÁGINA: {page}\n\n{part}',
+                'metadata': {'source': source, 'source_id': source_id, 'file_name': path.name,
+                    'page': page, 'chunk': chunk, 'total_pages': total_pages, 'sha256': fingerprint,
+                    'document_title': title, 'embedding_model': EMBEDDING_MODEL}})
+    if not records:
+        raise ValueError('El documento no contiene texto indexable.')
+    # Preparar todos los vectores antes de modificar el documento en Chroma.
+    vectors = []
+    for start in range(0, len(records), args.lote_embeddings):
+        batch = records[start:start + args.lote_embeddings]
+        vectors.extend(vectores_cache(client, [row['document'] for row in batch], args.output / 'embeddings_cache', args))
+    for row in records:
+        row['metadata']['total_chunks'] = len(records)
+    old_ids = set(collection.get(where={'source': source}, include=[])['ids'])
+    for start in range(0, len(records), 100):
+        batch = records[start:start + 100]
+        collection.upsert(ids=[row['id'] for row in batch], documents=[row['document'] for row in batch],
+                          metadatas=[row['metadata'] for row in batch], embeddings=vectors[start:start + 100])
+    obsolete = list(old_ids - {row['id'] for row in records})
+    if obsolete:
+        collection.delete(ids=obsolete)
+    if not txt.exists():
+        atomic_text(txt, text)
+    print(f'  Texto completo indexado: {total_pages} páginas, {len(records)} fragmentos.', flush=True)
+    return len(records)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--docs", type=Path, default=BASE.parent / "datos" / "pdfs")
-    parser.add_argument("--db", type=Path, default=Path(r"C:\IA_UNAMBA\chroma_db"))
-    parser.add_argument("--output", type=Path, default=BASE.parent / "datos" / "texto_extraido")
+    parser.add_argument("--solo-texto", action="store_true", help="Indexar texto completo existente sin usar el modelo OCR.")
+    parser.add_argument("--docs", type=Path, default=config.PDF_ORIGINALS_DIR)
+    parser.add_argument("--db", type=Path, default=config.CHROMA_DIR)
+    parser.add_argument("--output", type=Path, default=config.PDF_TEXT_DIR)
     parser.add_argument("--collection", default=COLLECTION_NAME)
-    parser.add_argument("--host", default="http://127.0.0.1:11434")
+    parser.add_argument("--host", default=config.OLLAMA_HOST)
     parser.add_argument("--poppler", type=Path)
     parser.add_argument("--rehacer-ocr", action="store_true")
     parser.add_argument("--max-paginas-parte", type=int, default=40,
@@ -514,15 +574,15 @@ def main():
         print(f"No hay PDF en {args.docs}. Copie allí sus documentos y vuelva a ejecutar.")
         return 1
     poppler = args.poppler or (POPPLER if (POPPLER / "pdftoppm.exe").exists() else None)
-    if poppler is None and not shutil.which("pdftoppm"):
+    if not args.solo_texto and poppler is None and not shutil.which("pdftoppm"):
         raise RuntimeError("No se encontró Poppler. Indique --poppler RUTA_A_BIN.")
     client = ollama.Client(host=args.host,
                            timeout=httpx.Timeout(args.timeout_ocr, connect=30), trust_env=False)
     available = {m.model for m in client.list().models}
-    for model in (OCR_MODEL, EMBEDDING_MODEL):
+    for model in ((EMBEDDING_MODEL,) if args.solo_texto else (OCR_MODEL, EMBEDDING_MODEL)):
         if model not in available:
             raise RuntimeError(f"Falta el modelo. Ejecute: ollama pull {model}")
-    chroma = chromadb.PersistentClient(path=str(args.db))
+    chroma = chromadb.PersistentClient(path=str(args.db), settings=chromadb.Settings(anonymized_telemetry=False))
     collection = chroma.get_or_create_collection(
         name=args.collection, embedding_function=None,
         metadata={"embedding_model": EMBEDDING_MODEL, "ocr_model": OCR_MODEL,
@@ -534,7 +594,8 @@ def main():
     for path in files:
         print(f"\nProcesando: {path.name}", flush=True)
         try:
-            count = procesar(path, args, client, collection, str(poppler) if poppler else None)
+            count = (procesar_texto(path, args, client, collection) if args.solo_texto else
+                     procesar(path, args, client, collection, str(poppler) if poppler else None))
             results.append({"archivo": str(path), "estado": "ok", "chunks": count})
         except Exception as exc:
             print(f"  ERROR: {exc}", flush=True)

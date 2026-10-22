@@ -1,9 +1,14 @@
-"""Arranque del servidor de IA. Ejecutar desde C:\\IA_UNAMBA:  python servidor\\app.py"""
+"""API de la UNAMBA: python servidor/app.py o iniciar.bat."""
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
 from flask import Flask, abort, jsonify, request
 
-import config
-from comun import transmitir
-from modos import docs, web
+from configuracion import servidor as config
+from servidor.comun import transmitir
+from servidor.modos import docs, web
 
 app = Flask(__name__)
 

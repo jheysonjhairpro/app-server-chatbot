@@ -1,18 +1,21 @@
-# Entorno virtual de Python
+# Entornos y caches
+.venv/
 venv/
 ENV/
 env/
-.venv/
-
-# Base de datos vectorial local (ChromaDB)
-chroma_db/
-
-# Variables de entorno secretas
-.env
-
-# Archivos de caché de Python
 __pycache__/
 *.py[cod]
-*$py.class
-*.so
 .pytest_cache/
+# Configuracion privada
+.env
+configuracion/*.env
+# Datos generados
+registros/
+datos/portal/admin/
+datos/portal/crawl/
+base de datos/
+
+# Corpus, OCR, respaldos e indices se mantienen solo en cada equipo.
+/datos/
+.env.*
+!.env.example
