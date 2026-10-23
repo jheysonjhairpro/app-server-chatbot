@@ -240,17 +240,39 @@ function Get-IndexCount([string]$Folder, [string]$Collection) {
     return [int]$result.Out.Trim()
 }
 
+function Ensure-DataDirectories {
+    $directories = @(
+        (Join-Path $Root 'datos\portal\documentos'),
+        (Join-Path $Root 'datos\portal\admin'),
+        (Join-Path $Root 'datos\portal\crawl'),
+        (Join-Path $Root 'datos\pdf\originales'),
+        (Join-Path $Root 'datos\pdf\texto_extraido'),
+        (Join-Path $Root 'base de datos\portal'),
+        (Join-Path $Root 'base de datos\pdf')
+    )
+    foreach ($directory in $directories) {
+        New-Item -ItemType Directory -Path $directory -Force | Out-Null
+    }
+}
+
 function Ensure-Indexes {
     $portalCount = Get-IndexCount $AppConfig.portal_db $AppConfig.portal_collection
     if ($portalCount -eq 0) {
-        Write-Host 'Preparando el indice del portal con los documentos locales...'
-        Run-Checked $Python @((Join-Path $PSScriptRoot 'portal.py'), 'indexar')
-        $portalCount = Get-IndexCount $AppConfig.portal_db $AppConfig.portal_collection
+        $portalDocuments = Join-Path $Root 'datos\portal\documentos'
+        $portalFiles = @(Get-ChildItem -LiteralPath $portalDocuments -File -ErrorAction SilentlyContinue |
+            Where-Object { $_.Extension.ToLowerInvariant() -in @('.md', '.txt') })
+        if ($portalFiles.Count -gt 0) {
+            Write-Host 'Preparando el indice del portal con los documentos locales...'
+            Run-Checked $Python @((Join-Path $PSScriptRoot 'portal.py'), 'indexar')
+            $portalCount = Get-IndexCount $AppConfig.portal_db $AppConfig.portal_collection
+        } else {
+            Write-Host 'No hay documentos del portal; se continuara solo con PDF.'
+        }
     }
     $pdfCount = Get-IndexCount $AppConfig.pdf_db $AppConfig.pdf_collection
     if ($pdfCount -eq 0) {
         Write-Host 'Preparando el indice PDF desde el texto ya extraido...'
-        $indexing = Run-Program $Python @((Join-Path $PSScriptRoot 'ingest_pdf.py'), '--solo-texto')
+        $indexing = Run-Program $Python @((Join-Path $PSScriptRoot 'ingest_pdf.py'))
         if ($indexing.Out) { Write-Host $indexing.Out.TrimEnd() }
         $pdfCount = Get-IndexCount $AppConfig.pdf_db $AppConfig.pdf_collection
         if ($pdfCount -eq 0) { throw 'No hay PDF completos para indexar. Revisa datos/pdf/texto_extraido/resultado.json.' }
@@ -288,13 +310,14 @@ try {
         $StartupMutex.ReleaseMutex()
         $acquired = $false
         $ErrorActionPreference = 'Continue'
-        if ($Accion -eq 'indexar-pdf') { & $Python (Join-Path $PSScriptRoot 'ingest_pdf.py') --solo-texto @Opciones }
+        if ($Accion -eq 'indexar-pdf') { & $Python (Join-Path $PSScriptRoot 'ingest_pdf.py') @Opciones }
         else { & $Python (Join-Path $PSScriptRoot 'portal.py') $Accion @Opciones }
         exit $LASTEXITCODE
     }
     if ($Accion -notin @('todo', 'preparar', 'servidor')) { throw 'Usa iniciar.bat para iniciar el servidor o iniciar.bat detener para cerrarlo.' }
     Assert-Local $AppConfig.api
     Ensure-Ollama
+    Ensure-DataDirectories
     Ensure-Indexes
     # Apache se administra desde XAMPP. Este enlace no contiene credenciales.
     $UiRoot = $AppConfig.ui_root
