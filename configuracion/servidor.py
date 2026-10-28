@@ -11,7 +11,7 @@ TOKEN = os.getenv('UNAMBA_TOKEN', '').strip()
 if not TOKEN:
     raise ValueError('Falta UNAMBA_TOKEN en .env. Ejecuta iniciar.bat para preparar la configuración.')
 
-HOST = "127.0.0.1"
+HOST = "0.0.0.0"
 PORT = int(os.environ.get("UNAMBA_PORT", "5000"))
 
 # Ollama
