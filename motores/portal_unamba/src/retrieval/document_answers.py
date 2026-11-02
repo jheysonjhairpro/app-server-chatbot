@@ -110,15 +110,31 @@ def operational_service_answer(question, nodes):
     query = normalize(question)
     by_path = {}
     for number, item in enumerate(nodes, 1):
-        path = urlsplit(str(item.node.metadata.get('source_url', ''))).path.rstrip('/')
+        path = urlsplit(str(item.node.metadata.get('source_url', ''))).path.rstrip('/') or '/'
         by_path.setdefault(path, []).append((number, item.node.text))
 
     bus = by_path.get('/bus-universitario', [])
+    comedor = by_path.get('/comedor-universitario', [])
+    offices = by_path.get('/oficinas-administrativas', [])
+    # Las preguntas mixtas se resuelven por cada fuente, sin inferir un dato
+    # faltante de la otra.
+    if comedor and bus and offices and all(word in query for word in ('comedor', 'bus', 'admision')):
+        breakfast = next(((number, re.search(r'\*\*Desayuno\*\*\s*([^\n]+)', text, re.I))
+                          for number, text in comedor if re.search(r'\*\*Desayuno\*\*\s*([^\n]+)', text, re.I)), None)
+        night = next(((number, re.search(r'\|\s*NOCHE\s*\|\s*([^|]+)\|', text, re.I))
+                      for number, text in bus if re.search(r'\|\s*NOCHE\s*\|\s*([^|]+)\|', text, re.I)), None)
+        email = next(((number, re.search(r'\badmision@unamba\.edu\.pe\b', text, re.I))
+                      for number, text in offices if re.search(r'\badmision@unamba\.edu\.pe\b', text, re.I)), None)
+        if breakfast and night and email:
+            return (f'Desayuno del comedor: {breakfast[1].group(1).strip()}, de lunes a viernes. [{breakfast[0]}]\n'
+                    f'Salida nocturna del bus: {night[1].group(1).strip()}. [{night[0]}]\n'
+                    f'Correo de Admisión: {email[1].group(0)}. [{email[0]}]')
     if bus and re.search(r'\b(bus|paraderos?|circunvalacion|salida|retorno)\b', query):
-        number, text = bus[0]
         if re.search(r'\b(paraderos?|ruta de salida)\b', query):
-            block = re.search(r'### Ruta de Salida\s*(.*?)(?=### Ruta de Retorno|\Z)', text, re.S | re.I)
-            if block:
+            for number, text in bus:
+                block = re.search(r'### Ruta de Salida\s*(.*?)(?=### Ruta de Retorno|\Z)', text, re.S | re.I)
+                if not block:
+                    continue
                 stops = []
                 for value in re.findall(r'^\s*([^\n]+)$', block.group(1), re.M):
                     value = value.strip()
@@ -133,13 +149,15 @@ def operational_service_answer(question, nodes):
                 if stops:
                     return 'Paraderos de salida del bus: ' + '; '.join(stops) + f'. [{number}]'
         if re.search(r'\b(noche|nocturn)\b', query):
-            match = re.search(r'\|\s*NOCHE\s*\|\s*([^|]+)\|\s*([^|]+)\|', text, re.I)
-            if match:
-                return f'En el turno noche, el bus sale a las {match.group(1).strip()} y retorna a las {match.group(2).strip()}. [{number}]'
+            for number, text in bus:
+                match = re.search(r'\|\s*NOCHE\s*\|\s*([^|]+)\|\s*([^|]+)\|', text, re.I)
+                if match:
+                    return f'En el turno noche, el bus sale a las {match.group(1).strip()} y retorna a las {match.group(2).strip()}. [{number}]'
         if re.search(r'\b(manana|mañana)\b', query):
-            match = re.search(r'\|\s*MAÑANA\s*\|\s*([^|]+)\|\s*([^|]+)\|', text, re.I)
-            if match:
-                return f'En la mañana, las salidas son {match.group(1).strip()} y los retornos {match.group(2).strip()}. [{number}]'
+            for number, text in bus:
+                match = re.search(r'\|\s*MAÑANA\s*\|\s*([^|]+)\|\s*([^|]+)\|', text, re.I)
+                if match:
+                    return f'En la mañana, las salidas son {match.group(1).strip()} y los retornos {match.group(2).strip()}. [{number}]'
 
     medical = by_path.get('/servicios-medicos', [])
     if medical and re.search(r'\b(psicologia|psicologo)\b', query):
@@ -148,9 +166,9 @@ def operational_service_answer(question, nodes):
             if match:
                 return f'Psicología atiende {match.group(1).strip()}, de {match.group(2).strip()}. [{number}]'
 
-    if medical and '/comedor-universitario' in by_path and re.search(r'\b(compara|comparacion|diferencia)\b', query):
-        comedor_number, comedor_text = by_path['/comedor-universitario'][0]
-        medical_number, medical_text = medical[0]
+    if medical and comedor and re.search(r'\b(compara|comparacion|diferencia)\b', query):
+        comedor_number, comedor_text = next(((n, t) for n, t in comedor if re.search(r'\bcon\s+carn[eé]', t, re.I)), comedor[0])
+        medical_number, medical_text = next(((n, t) for n, t in medical if 'Triaje' in t), medical[0])
         requirement = re.search(r'(?:ingreso|entrar)[^\n.]{0,80}\bcon\s+([^\n.]+)', comedor_text, re.I)
         identity = re.search(r'Presentar\s+([^\n.]+)', medical_text, re.I)
         triage = re.search(r'(Pasar obligatoriamente por[^\n.]+)', medical_text, re.I)
@@ -215,6 +233,33 @@ def professional_catalog_answer(question, nodes):
         if labels:
             return 'La página de escuelas profesionales enumera:\n\n' + '\n'.join(
                 f'- {label} [{number}]' for label in labels)
+    return None
+
+
+def catalog_and_audience_answer(question, nodes):
+    """Lista catálogos y audiencias desde el bloque de página que los contiene."""
+    query = normalize(question)
+    wants_catalog = bool(re.search(r'\b(escuelas profesionales|carreras)\b', query) and
+                         re.search(r'\b(catalogo|enumera|lista|cuales|que)\b', query))
+    wants_audiences = 'estudiantes' in query and 'egresados' in query and re.search(r'\b(servicios|enlaces)\b', query)
+    for number, item in enumerate(nodes, 1):
+        path = urlsplit(str(item.node.metadata.get('source_url', ''))).path.rstrip('/') or '/'
+        text = item.node.text
+        if wants_catalog and path == '/':
+            block = re.search(r'^\s*- \[Escuelas profesionales\][^\n]*\n(.*?)(?=^\s*- \[Posgrado\])', text, re.S | re.M | re.I)
+            if not block:
+                continue
+            labels = [label.strip() for label in re.findall(r'^\s*- \[([^\]\n]+)\]\(', block.group(1), re.M)]
+            if len(labels) >= 2:
+                return 'El catálogo enumera:\n\n' + '\n'.join(f'- {label} [{number}]' for label in labels)
+        if wants_audiences and path == '/servicios-universitarios':
+            def section(name):
+                match = re.search(rf'## {name}\s*(.*?)(?=## |\Z)', text, re.S | re.I)
+                return [label.strip() for label in re.findall(r'(?<!!)\[([^\]\n]+)\]\(', match.group(1))] if match else []
+            students, graduates = section('Estudiantes'), section('Egresados')
+            if students and graduates:
+                return ('Servicios para estudiantes:\n' + '\n'.join(f'- {label} [{number}]' for label in students)
+                        + '\n\nServicios para egresados:\n' + '\n'.join(f'- {label} [{number}]' for label in graduates))
     return None
 
 
@@ -382,7 +427,9 @@ def school_fact_answer(question, nodes):
     degree = 'grado academico' in query
     title = 'titulo profesional' in query
     director = bool(re.search(r'\bdirector(?:a)?\b', query))
-    sites = bool(re.search(r'\b(sede|sedes|filial|filiales|local|locales)\b', query))
+    # "director ... en la filial" pide personas por ubicación, no un inventario
+    # de sedes; por ello no debe activar dos tipos de respuesta incompatibles.
+    sites = not director and bool(re.search(r'\b(sede|sedes|filial|filiales|local|locales)\b', query))
     laboratories = bool(re.search(r'\blaboratorios?\b', query))
     if sum((duration, degree, title, director, sites, laboratories)) != 1:
         return None
