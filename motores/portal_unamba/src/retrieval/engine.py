@@ -51,7 +51,7 @@ from motores.portal_unamba.src.retrieval.bm25 import BM25Index, normalize, token
 from motores.portal_unamba.src.retrieval.queries import search_queries, question_parts, safe_queries, content_terms, asks_for_list
 from motores.portal_unamba.src.retrieval.context import redundant, merge_neighbors, cite_exact_headings, complete_heading_list, faculty_career_list, linked_service_list, linked_masters_list, branch_labels, branch_reference_list, authority_identity_answer
 from motores.portal_unamba.src.retrieval.grounding import normalize_citations, evidence_text, needs_grounding, Claim, GroundingReview, GROUNDING_PROMPT, FAST_FACT_PROMPT, reviewed_answer
-from motores.portal_unamba.src.retrieval.document_answers import priority_records, school_fact_answer, authority_roster_answer, asks_professional_catalog, professional_catalog_answer, institutional_contact_answer, school_location_answer, vocational_answer
+from motores.portal_unamba.src.retrieval.document_answers import priority_records, school_fact_answer, authority_roster_answer, asks_professional_catalog, professional_catalog_answer, institutional_contact_answer, school_location_answer, vocational_answer, payment_code_answer, service_entry_answer
 from motores.portal_unamba.src.retrieval.cache import VerifiedAnswerCache
 from motores.portal_unamba.src.bot.prompts import _fecha_actual
 
@@ -479,14 +479,18 @@ class RAGEngine:
         if HISTORY_TURNS <= 0 or not self.history:
             return question
         dependent = re.search(
-            r'\b(ese|esa|esos|esas|eso|dicho|dicha|anterior|mencionado|mencionada|ahi|alli)\b|^[¿\s]*y\b|^en (?:la |el )?(?:filial|sede)\b',
+            r'\b(ese|esa|esos|esas|eso|dicho|dicha|anterior|mencionado|mencionada|ahi|alli)\b|^[¿\s]*y\b|^en (?:la |el )?(?:filial|sede)\b|^(?:que )?(?:documento|requisito).*(?:llevo|necesito|presento|entrar|ingresar)\b',
             normalize(question),
         )
         if not dependent:
             return question
-        # Conservar literalmente la pregunta y heredar solo la pregunta previa.
+        # Conservar literalmente la pregunta y recuperar el tema original.  Una
+        # cadena de seguimientos antes descartaba el tema al quedarse con "Y la…".
         # Una respuesta del modelo nunca debe sustituir nombres ni siglas.
-        previous = self.history[-1][0].split(' (Tema anterior:', 1)[0][:300]
+        previous = self.history[-1][0]
+        if ' (Tema anterior:' in previous:
+            previous = previous.rsplit(' (Tema anterior:', 1)[1].rstrip(')')
+        previous = previous[:300]
         if re.match(r'^en (?:la |el )?(?:filial|sede)\b', normalize(question)) and re.search(
                 r'\b(?:escuelas|carreras)\b', normalize(previous)):
             # El lugar nuevo sustituye al anterior; no buscar ambas filiales.
@@ -665,11 +669,9 @@ class RAGEngine:
         emitted = ''
 
         def reject(reason):
-            result = self._abstain(question, standalone, reason, on_token, emit_text=not bool(emitted))
-            if emitted and on_token is not None:
-                on_token('\n\n[La generación anterior no superó la validación final.]\n' + result.text)
-            return result
-        direct = (vocational_answer(standalone, nodes) or school_location_answer(standalone, nodes) or institutional_contact_answer(standalone, nodes) or school_fact_answer(standalone, nodes) or authority_roster_answer(standalone, nodes) or authority_identity_answer(standalone, nodes)) if FAST_MODE else None
+            # No se transmite un borrador que luego pudiera ser rechazado.
+            return self._abstain(question, standalone, reason, on_token)
+        direct = (payment_code_answer(standalone, nodes) or vocational_answer(standalone, nodes) or school_location_answer(standalone, nodes) or service_entry_answer(standalone, nodes) or institutional_contact_answer(standalone, nodes) or school_fact_answer(standalone, nodes) or authority_roster_answer(standalone, nodes) or authority_identity_answer(standalone, nodes)) if FAST_MODE else None
         if broad and not direct:
             direct = (professional_catalog_answer(standalone, nodes) or faculty_career_list(standalone, nodes) or linked_service_list(standalone, nodes)
                       or linked_masters_list(standalone, nodes) or branch_reference_list(standalone, nodes))
@@ -681,19 +683,15 @@ class RAGEngine:
             if on_status is not None:
                 on_status('Extrayendo afirmaciones con citas textuales...')
             proof_context = '\n\n'.join(f'FUENTE {i}:\n{evidence_text(node.node.text)}' for i, node in enumerate(nodes, 1))
-            if on_token is not None and STREAM_RESPONSES:
-                review, emitted = self._stream_facts(standalone, proof_context, nodes, on_token)
-            else:
-                review = self.llm.structured_predict(GroundingReview, FAST_FACT_PROMPT,
-                    question=standalone, context=proof_context)
+            review = self.llm.structured_predict(GroundingReview, FAST_FACT_PROMPT,
+                question=standalone, context=proof_context)
             checked = reviewed_answer(review, nodes, standalone)
             if not checked:
                 return reject('afirmaciones sin respaldo verificable')
             response = GroundedResponse(has_evidence=True, answer=checked[0], source_ids=checked[1])
             fact_checked = True
         else:
-            response, emitted = self._generate_response(context, standalone, len(nodes),
-                on_token if STREAM_RESPONSES and FAST_MODE else None)
+            response, emitted = self._generate_response(context, standalone, len(nodes), None)
         self.last_retrieval['reformulation_seconds'] = round(reformulation_seconds, 3)
         self.last_retrieval['generation_seconds'] = round(perf_counter() - generation_started, 3)
         completed = direct or (complete_heading_list(standalone, response.answer, nodes) if broad and response.has_evidence else None)
@@ -774,12 +772,7 @@ class RAGEngine:
         else:
             used_sources = cited_sources
         if on_token is not None:
-            if not answer_text.startswith(emitted):
-                delta = '\n\nRespuesta corregida tras verificar las fuentes:\n' + answer_text
-            else:
-                delta = answer_text[len(emitted):]
-            if delta:
-                on_token(delta)
+            on_token(answer_text)
 
         if HISTORY_TURNS > 0:
             self.history.append((standalone, answer_text))

@@ -5,6 +5,106 @@ from urllib.parse import urlsplit, unquote
 from motores.portal_unamba.src.retrieval.bm25 import normalize
 
 
+def _payment_label_words(label):
+    ignored = {'para', 'por', 'del', 'las', 'los', 'con', 'sin', 'una', 'uno', 'de'}
+    return [word for word in re.findall(r'[a-z]{4,}', normalize(label)) if word not in ignored]
+
+
+def _matches_payment_label(label, query):
+    """Compara el concepto aun si el documento contiene acentos mal extraídos."""
+    if normalize(label) in query:
+        return True
+    label_words = _payment_label_words(label)
+    query_words = set(re.findall(r'[a-z]{4,}', query))
+    if not label_words:
+        return False
+    matches = sum(any(word == candidate or word.startswith(candidate) or candidate.startswith(word)
+                      for candidate in query_words)
+                  for word in label_words)
+    # La coincidencia flexible se usa solo para reparar acentos defectuosos;
+    # exigir todos los términos evita confundir dos constancias distintas.
+    return matches == len(label_words)
+
+
+def payment_code_answer(question, nodes):
+    """Extrae pares código-concepto sin delegar una lista posicional al modelo."""
+    query = normalize(question)
+    if not re.search(r'\b(codigos?|pago|precio|tasa|concepto|constancia|carnet|carne|maestria|tesis)\b', query):
+        return None
+    pairs = {}
+    for number, item in enumerate(nodes, 1):
+        source = urlsplit(str(item.node.metadata.get('source_url', '')))
+        if source.path.rstrip('/') != '/pagos-virtuales':
+            continue
+        for code, label in re.findall(r'^\s*(\d{5})\s*\n+\s*([^\n]+)', item.node.text, re.M):
+            pairs.setdefault(code, (label.strip(), number))
+    if not pairs:
+        return None
+    asked_codes = list(dict.fromkeys(re.findall(r'\b\d{5}\b', query)))
+    if asked_codes:
+        found = [(code, *pairs[code]) for code in asked_codes if code in pairs]
+        if not found:
+            return None
+        lines = [f'- {code}: {label} [{number}]' for code, label, number in found]
+        if re.search(r'\b(precio|soles|importe|costo)\b', query):
+            return 'El valor indicado es un código de pago, no un precio en soles.\n\n' + '\n'.join(lines)
+        return '\n'.join(lines)
+    # En un seguimiento como "¿Y la de matrícula?", la pregunta anterior
+    # aporta la familia (p. ej., "constancia") y la actual aporta el
+    # diferenciador. No se deben exigir a la nueva opción las palabras de la
+    # opción anterior ("estudios"), porque eso la volvería ambigua.
+    current, marker, prior = query.partition('tema anterior')
+    if marker:
+        current_words = set(re.findall(r'[a-z]{4,}', current))
+        prior_words = set(re.findall(r'[a-z]{4,}', prior))
+        families = {'constancia', 'certificado', 'carnet', 'carne', 'tesis', 'maestria'}
+        inherited_families = prior_words & families
+        follow_up = []
+        for code, (label, number) in pairs.items():
+            label_words = set(_payment_label_words(label))
+            if inherited_families <= label_words and current_words & label_words:
+                follow_up.append((code, label, number))
+        if follow_up:
+            specificity = max(len(current_words & set(_payment_label_words(label)))
+                              for _, label, _ in follow_up)
+            follow_up = [entry for entry in follow_up
+                         if len(current_words & set(_payment_label_words(entry[1]))) == specificity]
+        if len(follow_up) == 1:
+            code, label, number = follow_up[0]
+            return f'El código de pago para «{label}» es {code}. [{number}]'
+    matches = [(code, label, number) for code, (label, number) in pairs.items()
+               if _matches_payment_label(label, query)]
+    if matches:
+        # "Curso de actualización" es parte de "Inscripción curso de
+        # actualización". Cuando hay una coincidencia más específica, usarla.
+        specificity = max(len(_payment_label_words(label)) for _, label, _ in matches)
+        matches = [match for match in matches if len(_payment_label_words(match[1])) == specificity]
+    if len(matches) == 1:
+        code, label, number = matches[0]
+        return f'El código de pago para «{label}» es {code}. [{number}]'
+    return None
+
+
+def service_entry_answer(question, nodes):
+    """Responde requisitos de ingreso solo cuando la fuente los enuncia literalmente."""
+    query = normalize(question)
+    asks_requirement = bool(re.search(
+        r'\b(documento|requisito|carnet|carne|dni|identificacion)\b.*\b('
+        r'llevo|necesito|presento|ingresar|entrar|acceder)\b|\b(entrar|ingresar)\b.*\b(comedor|servicio)\b',
+        query,
+    ))
+    if not asks_requirement or 'comedor' not in query:
+        return None
+    for number, item in enumerate(nodes, 1):
+        source = urlsplit(str(item.node.metadata.get('source_url', '')))
+        if source.path.rstrip('/') != '/comedor-universitario':
+            continue
+        match = re.search(r'(?:ingreso|entrar)[^\n.]{0,80}\bcon\s+([^\n.]+)', item.node.text, re.I)
+        if match:
+            return f'Para ingresar al comedor se exige {match.group(1).strip()}. [{number}]'
+    return None
+
+
 def asks_professional_catalog(question):
     return bool(re.fullmatch(
         r'(?:que|cuales|cuales son las) (?:escuelas profesionales|carreras(?: profesionales)?) '
@@ -61,7 +161,9 @@ def school_scope(question, metadata):
         return False
     words = set(normalize(path.split('/')[2].replace('-', ' ')).split())
     words -= {'ingenieria', 'profesional', 'escuela', 'de', 'y', 'en'}
-    query = set(normalize(question).split())
+    # Las preguntas reales terminan normalmente en "?"; separarlo evita que
+    # "Administración?" deje de coincidir con el nombre de la ficha.
+    query = set(re.findall(r'[a-z]+', normalize(question)))
     return bool(words & query)
 
 
@@ -71,6 +173,12 @@ def priority_records(question, records):
     result, seen_roles, location_paths = [], set(), set()
     location = requested_school_location(question)
     vocational = vocational_terms(question)
+    payment_terms = bool(re.search(r'\b(codigos?|pago|precio|tasa|concepto|constancia|carnet|carne|maestria|tesis)\b', query))
+    payment_codes = set(re.findall(r'\b\d{5}\b', query))
+    asks_comedor_requirement = (
+        'comedor' in query
+        and bool(re.search(r'\b(documento|requisito|carnet|carne|dni|entrar|ingresar)\b', query))
+    )
     vocational_paths = set()
     for cid, (text, metadata) in records.items():
         clean = normalize(text)
@@ -82,7 +190,11 @@ def priority_records(question, records):
             location_paths.add(path)
         if school_scope(question, metadata):
             relevant = bool(
-                (re.search(r'\b(dura|duracion|director|directora)\b', query) and 'duracion' in clean)
+                (re.search(r'\b(dura|duracion|semestres)\b', query) and 'duracion' in clean)
+                or ('grado academico' in query and 'grado academico' in clean)
+                or ('titulo profesional' in query and 'titulo profesional' in clean)
+                or (re.search(r'\bdirector(?:a)?\b', query) and re.search(r'\bdirector(?:a)?\b', clean))
+                or (re.search(r'\b(sedes|filiales|locales)\b', query) and ('locales / sedes' in clean or re.search(r'^[-*]\s*(?:sede|filial)', clean, re.M)))
                 or ('laboratorio' in query and re.search(r'^#{1,6}\s+.*laboratorio', clean, re.M)))
         if 'bienvenida' in query and 'rector' in query:
             relevant = path == '/bienvenida-del-rector' and len(text) > 250
@@ -90,6 +202,12 @@ def priority_records(question, records):
             relevant = 'central telefonica' in clean
         if re.search(r'\b(acoso|denunciar|denuncia)\b', query):
             relevant = path == '/servicios-universitarios' and 'defensor' in clean
+        if payment_terms and path == '/pagos-virtuales':
+            pairs = re.findall(r'^\s*(\d{5})\s*\n+\s*([^\n]+)', text, re.M)
+            relevant = any(code in payment_codes or _matches_payment_label(label, query) for code, label in pairs)
+        if asks_comedor_requirement and path == '/comedor-universitario' and re.search(
+                r'\b(carne|carnet|dni)\b', clean):
+            relevant = True
         if vocational and path.startswith('/escuela-profesional/'):
             relevant = bool(re.search(vocational, clean))
             if relevant:
@@ -183,39 +301,47 @@ def school_location_answer(question, nodes):
 
 def school_fact_answer(question, nodes):
     query = normalize(question).strip(' ¿?!.')
-    school = r'(?:la )?(?:(?:carrera|escuela)(?: profesional)? de )?'
-    duration = re.fullmatch(r'(?:cuanto dura|cual es la duracion de|duracion de) ' + school + r'(.+)', query)
-    director = re.fullmatch(r'(?:(?:quien es|dime quien es) (?:el |la )?)?(?:director|directora) de ' + school + r'(.+)', query)
-    laboratories = re.fullmatch(r'(?:que laboratorios (?:tiene|hay en)|laboratorios de) ' + school + r'(.+)', query)
-    if not (duration or director or laboratories):
+    duration = bool(re.search(r'\b(cuanto dura|duracion|semestres)\b', query))
+    degree = 'grado academico' in query
+    title = 'titulo profesional' in query
+    director = bool(re.search(r'\bdirector(?:a)?\b', query))
+    sites = bool(re.search(r'\b(sedes|filiales|locales)\b', query))
+    laboratories = bool(re.search(r'\blaboratorios?\b', query))
+    if sum((duration, degree, title, director, sites, laboratories)) != 1:
         return None
     entries, scopes = {}, set()
     for number, item in enumerate(nodes, 1):
         if not school_scope(question, item.node.metadata):
             continue
-        # No responder una variante restringida (sede, año, modalidad) con la
-        # ficha general. Todas las palabras del programa deben pertenecer a ella.
-        program = (duration or director or laboratories)[1]
-        slug = urlsplit(str(item.node.metadata.get('source_url', ''))).path.split('/')[2]
-        if not (set(program.split()) - {'de', 'y', 'en'}) <= set(normalize(slug.replace('-', ' ')).split()):
-            continue
         scopes.add(urlsplit(str(item.node.metadata.get('source_url', ''))).path.rstrip('/'))
         text = item.node.text
         if duration:
-            values = re.findall(r'Duraci[oó]n\s*:?\s*(\d+\s+semestres)\b', text, re.I)
+            values = re.findall(r'Duraci[oó]n\s*:?\s*(\d+\s+semestres(?:\s+acad[eé]micos?)?)\b', text, re.I)
+        elif degree:
+            values = re.findall(r'Grado\s+Acad[eé]mico\s*:?\s*([^\n]+)', text, re.I)
+        elif title:
+            values = re.findall(r'T[ií]tulo\s+Profesional\s*:?\s*([^\n]+)', text, re.I)
         elif director:
             values = [f'Dirección ({site.strip()}): {name.strip()}' for site, name in re.findall(
                 r'Director(?:a)?\s*\(([^)\n]+)\)\s*:?\s*([^\n]+)', text, re.I)]
             values += [f'Dirección de filial: {name.strip()}' for name in re.findall(
                 r'^Director(?:a)?\s+Filial\s*:?\s*([^\n]+)', text, re.I | re.M)]
+            values += [f'Dirección: {name.strip()}' for name in re.findall(
+                r'^Director(?:a)?(?!\s*\(|\s+Filial)\s*:?\s*([^\n]+)', text, re.I | re.M)]
+        elif sites:
+            values = re.findall(r'^\s*[-*]\s*((?:Sede|Filial)[^\n]+)', text, re.I | re.M)
         else:
             values = re.findall(r'^#{1,6}\s+([^\n]*Laboratorio[^\n]*)', text, re.I | re.M)
         for value in values:
             entries.setdefault(value.strip(), number)
-    if len(scopes) != 1 or not entries or (duration and len(entries) != 1):
+    if len(scopes) != 1 or not entries or ((duration or degree or title) and len(entries) != 1):
         return None
-    prefix = 'Duración indicada en la ficha: ' if duration else 'Según la ficha de la escuela:\n\n'
-    return prefix + '\n'.join(f'{"- " if not duration else ""}{value} [{number}]' for value, number in entries.items())
+    prefix = ('Duración indicada en la ficha: ' if duration else
+              'Grado académico indicado en la ficha: ' if degree else
+              'Título profesional indicado en la ficha: ' if title else
+              'Según la ficha de la escuela:\n\n')
+    exact_value = duration or degree or title
+    return prefix + '\n'.join(f'{"- " if not exact_value else ""}{value} [{number}]' for value, number in entries.items())
 
 
 def authority_pairs(text):
