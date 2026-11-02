@@ -105,6 +105,72 @@ def service_entry_answer(question, nodes):
     return None
 
 
+def operational_service_answer(question, nodes):
+    """Respuestas literales para horarios, rutas y pasos operativos del portal."""
+    query = normalize(question)
+    by_path = {}
+    for number, item in enumerate(nodes, 1):
+        path = urlsplit(str(item.node.metadata.get('source_url', ''))).path.rstrip('/')
+        by_path.setdefault(path, []).append((number, item.node.text))
+
+    bus = by_path.get('/bus-universitario', [])
+    if bus and re.search(r'\b(bus|paraderos?|circunvalacion|salida|retorno)\b', query):
+        number, text = bus[0]
+        if re.search(r'\b(paraderos?|ruta de salida)\b', query):
+            block = re.search(r'### Ruta de Salida\s*(.*?)(?=### Ruta de Retorno|\Z)', text, re.S | re.I)
+            if block:
+                stops = []
+                for value in re.findall(r'^\s*([^\n]+)$', block.group(1), re.M):
+                    value = value.strip()
+                    if value.isdigit() or not value:
+                        continue
+                    value = re.sub(r'(?:Origen|Paradero(?: Intermedio)?|Destino Final Principal)', '', value, flags=re.I)
+                    value = re.sub(r'\s{2,}', ' ', value).strip(' <')
+                    if value.lower().startswith(('salidas desde', 'sentido ')) or value in {'↓', '↑'}:
+                        continue
+                    if value and value not in stops:
+                        stops.append(value)
+                if stops:
+                    return 'Paraderos de salida del bus: ' + '; '.join(stops) + f'. [{number}]'
+        if re.search(r'\b(noche|nocturn)\b', query):
+            match = re.search(r'\|\s*NOCHE\s*\|\s*([^|]+)\|\s*([^|]+)\|', text, re.I)
+            if match:
+                return f'En el turno noche, el bus sale a las {match.group(1).strip()} y retorna a las {match.group(2).strip()}. [{number}]'
+        if re.search(r'\b(manana|mañana)\b', query):
+            match = re.search(r'\|\s*MAÑANA\s*\|\s*([^|]+)\|\s*([^|]+)\|', text, re.I)
+            if match:
+                return f'En la mañana, las salidas son {match.group(1).strip()} y los retornos {match.group(2).strip()}. [{number}]'
+
+    medical = by_path.get('/servicios-medicos', [])
+    if medical and re.search(r'\b(psicologia|psicologo)\b', query):
+        for number, text in medical:
+            match = re.search(r'\|\s*Psicolog[ií]a\s*\|\s*([^|]+)\|\s*([^|]+)\|', text, re.I)
+            if match:
+                return f'Psicología atiende {match.group(1).strip()}, de {match.group(2).strip()}. [{number}]'
+
+    if medical and '/comedor-universitario' in by_path and re.search(r'\b(compara|comparacion|diferencia)\b', query):
+        comedor_number, comedor_text = by_path['/comedor-universitario'][0]
+        medical_number, medical_text = medical[0]
+        requirement = re.search(r'(?:ingreso|entrar)[^\n.]{0,80}\bcon\s+([^\n.]+)', comedor_text, re.I)
+        identity = re.search(r'Presentar\s+([^\n.]+)', medical_text, re.I)
+        triage = re.search(r'(Pasar obligatoriamente por[^\n.]+)', medical_text, re.I)
+        care = re.search(r'(Atenci[oó]n directa en[^\n.]+)', medical_text, re.I)
+        if requirement and identity and triage and care:
+            return (f'Comedor: se exige puntualidad e ingreso con {requirement.group(1).strip()}. [{comedor_number}]\n\n'
+                    f'Centro médico: {identity.group(1).strip()}; Triaje: {triage.group(1).strip()}; {care.group(1).strip()}. [{medical_number}]')
+
+    history = by_path.get('/nuestra-universidad', [])
+    if history and '2015' in query and re.search(r'\b(creo|creada|creacion|paso|ocurrio)\b', query):
+        for number, text in history:
+            if (re.search(r'creada en el a[nñ]o 2000', text, re.I)
+                    and '007-2015-CEUTA UNAMBA' in text
+                    and re.search(r'03 de julio del 2015', text, re.I)):
+                return ('La UNAMBA fue creada en 2000. En 2015 se reconoció a los integrantes de su Asamblea Estatutaria '
+                        'mediante la Resolución Nº 007-2015-CEUTA UNAMBA, el 03 de julio. '
+                        f'[{number}]')
+    return None
+
+
 def asks_professional_catalog(question):
     return bool(re.fullmatch(
         r'(?:que|cuales|cuales son las) (?:escuelas profesionales|carreras(?: profesionales)?) '
@@ -208,6 +274,17 @@ def priority_records(question, records):
         if asks_comedor_requirement and path == '/comedor-universitario' and re.search(
                 r'\b(carne|carnet|dni)\b', clean):
             relevant = True
+        if path == '/bus-universitario' and 'bus' in query and (
+                ('paradero' in query and 'ruta de salida' in clean)
+                or (re.search(r'\b(noche|nocturn)\b', query) and 'noche' in clean)
+                or (re.search(r'\b(manana|mañana)\b', query) and 'manana' in clean)):
+            relevant = True
+        if path == '/servicios-medicos' and (
+                ('psicologia' in query and 'psicologia' in clean)
+                or (re.search(r'\b(compara|comparacion|diferencia)\b', query) and ('triaje' in clean or 'carnet universitario' in clean))):
+            relevant = True
+        if path == '/nuestra-universidad' and '2015' in query and ('asamblea estatutaria' in clean or 'creada en el ano 2000' in clean):
+            relevant = True
         if vocational and path.startswith('/escuela-profesional/'):
             relevant = bool(re.search(vocational, clean))
             if relevant:
@@ -305,7 +382,7 @@ def school_fact_answer(question, nodes):
     degree = 'grado academico' in query
     title = 'titulo profesional' in query
     director = bool(re.search(r'\bdirector(?:a)?\b', query))
-    sites = bool(re.search(r'\b(sedes|filiales|locales)\b', query))
+    sites = bool(re.search(r'\b(sede|sedes|filial|filiales|local|locales)\b', query))
     laboratories = bool(re.search(r'\blaboratorios?\b', query))
     if sum((duration, degree, title, director, sites, laboratories)) != 1:
         return None
