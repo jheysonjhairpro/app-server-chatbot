@@ -51,7 +51,7 @@ from motores.portal_unamba.src.retrieval.bm25 import BM25Index, normalize, token
 from motores.portal_unamba.src.retrieval.queries import search_queries, question_parts, safe_queries, content_terms, asks_for_list
 from motores.portal_unamba.src.retrieval.context import redundant, merge_neighbors, cite_exact_headings, complete_heading_list, faculty_career_list, linked_service_list, linked_masters_list, branch_labels, branch_reference_list, authority_identity_answer
 from motores.portal_unamba.src.retrieval.grounding import normalize_citations, evidence_text, needs_grounding, Claim, GroundingReview, GROUNDING_PROMPT, FAST_FACT_PROMPT, reviewed_answer
-from motores.portal_unamba.src.retrieval.document_answers import priority_records, school_scope, school_fact_answer, authority_roster_answer, asks_professional_catalog, professional_catalog_answer, institutional_contact_answer, school_location_answer, vocational_answer, payment_code_answer, service_entry_answer, operational_service_answer, catalog_and_audience_answer
+from motores.portal_unamba.src.retrieval.document_answers import priority_records, school_scope, school_fact_answer, authority_roster_answer, asks_professional_catalog, professional_catalog_answer, institutional_contact_answer, school_location_answer, vocational_answer, payment_code_answer, service_entry_answer, operational_service_answer, catalog_and_audience_answer, faculty_school_answer, page_summary_answer, institutional_detail_answer
 from motores.portal_unamba.src.retrieval.cache import VerifiedAnswerCache
 from motores.portal_unamba.src.bot.prompts import _fecha_actual
 
@@ -488,6 +488,19 @@ class RAGEngine:
             paths.add('/servicios-medicos')
         if 'admision' in query:
             paths.add('/oficinas-administrativas')
+        if 'estudiantes' in query and 'egresados' in query and re.search(r'\b(servicios|enlaces)\b', query):
+            paths.add('/servicios-universitarios')
+        if re.search(r'\brector\b', query) and re.search(r'\bvicerrectores?\b', query):
+            paths |= {'/bienvenida-del-rector', '/vicerrectorado-academico', '/vicerrectorado-de-investigacion'}
+        if 'facultad de educacion y ciencias sociales' in query:
+            paths.add('/facultad-de-educacion-y-ciencias-sociales')
+        quoted = re.search(r'[«"]([^»"]+)[»"]', question)
+        if quoted and re.search(r'\b(resume|puntos principales|que informacion ofrece)\b', query):
+            target = normalize(quoted[1]).strip(' .')
+            for _, (text, metadata) in self._records.items():
+                title = normalize(str(metadata.get('titulo', '')))
+                if target in title or target in normalize(text):
+                    paths.add(urlsplit(str(metadata.get('source_url', '')).rstrip('/')).path or '/')
         if '2015' in query:
             paths.add('/nuestra-universidad')
         if re.search(r'\b(escuelas profesionales|carreras)\b.*\b(catalogo|enumera|lista)', query):
@@ -521,6 +534,10 @@ class RAGEngine:
         # cadena de seguimientos antes descartaba el tema al quedarse con "Y la…".
         # Una respuesta del modelo nunca debe sustituir nombres ni siglas.
         previous = self.history[-1][0]
+        if re.match(r'^(?:que )?(?:documento|requisito)', normalize(question)):
+            conversation = ' '.join(f'{old_question} {answer}' for old_question, answer in self.history)
+            if 'comedor' in normalize(conversation):
+                return f'{question} (Tema anterior: comedor universitario)'
         if ' (Tema anterior:' in previous:
             previous = previous.rsplit(' (Tema anterior:', 1)[1].rstrip(')')
         previous = previous[:300]
@@ -705,7 +722,7 @@ class RAGEngine:
         def reject(reason):
             # No se transmite un borrador que luego pudiera ser rechazado.
             return self._abstain(question, standalone, reason, on_token)
-        direct = (payment_code_answer(standalone, nodes) or operational_service_answer(standalone, nodes) or catalog_and_audience_answer(standalone, nodes) or vocational_answer(standalone, nodes) or school_location_answer(standalone, nodes) or service_entry_answer(standalone, nodes) or institutional_contact_answer(standalone, nodes) or school_fact_answer(standalone, nodes) or authority_roster_answer(standalone, nodes) or authority_identity_answer(standalone, nodes)) if FAST_MODE else None
+        direct = (payment_code_answer(standalone, nodes) or page_summary_answer(standalone, nodes) or operational_service_answer(standalone, nodes) or institutional_detail_answer(standalone, nodes) or catalog_and_audience_answer(standalone, nodes) or faculty_school_answer(standalone, nodes) or vocational_answer(standalone, nodes) or school_location_answer(standalone, nodes) or service_entry_answer(standalone, nodes) or institutional_contact_answer(standalone, nodes) or school_fact_answer(standalone, nodes) or authority_roster_answer(standalone, nodes) or authority_identity_answer(standalone, nodes)) if FAST_MODE else None
         if broad and not direct:
             direct = (professional_catalog_answer(standalone, nodes) or faculty_career_list(standalone, nodes) or linked_service_list(standalone, nodes)
                       or linked_masters_list(standalone, nodes) or branch_reference_list(standalone, nodes))

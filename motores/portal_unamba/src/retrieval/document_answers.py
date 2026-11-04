@@ -105,6 +105,77 @@ def service_entry_answer(question, nodes):
     return None
 
 
+def page_summary_answer(question, nodes):
+    """Resume literalmente la página nombrada, sin completar datos ausentes."""
+    match = re.search(r'[«"]([^»"]+)[»"]', question)
+    if not match or not re.search(r'\b(resume|puntos principales|que informacion ofrece)\b', normalize(question)):
+        return None
+    target = normalize(match.group(1)).strip(' .')
+    grouped = {}
+    for number, item in enumerate(nodes, 1):
+        meta = item.node.metadata
+        key = str(meta.get('source_file') or meta.get('source_url') or item.node.node_id)
+        grouped.setdefault(key, (number, meta, []))[2].append(item.node.text)
+    candidates = []
+    for number, meta, chunks in grouped.values():
+        text = '\n'.join(chunks)
+        title = normalize(str(meta.get('titulo', '')))
+        if target not in title and target not in normalize(text):
+            continue
+        lines = []
+        for line in text.splitlines():
+            value = line.strip().strip('*')
+            if (not value or value.startswith(('---', 'url:', 'extraido_con:', 'formato:', '!', '[Home]'))
+                    or re.fullmatch(r'#+\s*', value) or value.startswith(('[http', 'http'))):
+                continue
+            value = re.sub(r'\[([^\]]+)\]\([^)]*\)', r'\1', value)
+            value = ' '.join(value.split())
+            if len(value) >= 45 and value not in lines:
+                lines.append(value)
+            if len(lines) == 4:
+                break
+        if lines:
+            candidates.append((number, lines))
+    if len(candidates) != 1:
+        return None
+    number, lines = candidates[0]
+    return f'La página «{match.group(1).strip()}» indica:\n\n' + '\n'.join(
+        f'- {line} [{number}]' for line in lines)
+
+
+def institutional_detail_answer(question, nodes):
+    """Extrae contactos y autoridades solo desde sus bloques institucionales."""
+    query = normalize(question)
+    by_path = {}
+    for number, item in enumerate(nodes, 1):
+        path = urlsplit(str(item.node.metadata.get('source_url', '')).rstrip('/')).path or '/'
+        by_path.setdefault(path, []).append((number, item.node.text))
+    if 'admision' in query and re.search(r'\b(correo|telefono|anexo)\b', query):
+        entries = by_path.get('/oficinas-administrativas', [])
+        for number, text in entries:
+            email = re.search(r'\badmision@unamba\.edu\.pe\b', text, re.I)
+            phone = re.search(r'(\(083\)\s*690613\s*Anex\.\s*1069)', text, re.I)
+            if email and phone:
+                return f'Dirección de Admisión: {email.group(0)}; {phone.group(1)}. [{number}]'
+    if re.search(r'\brector\b', query) and re.search(r'\bvicerrectores?\b', query):
+        roles = [
+            ('Rector', '/bienvenida-del-rector', r'(?:Dr\.?\s+)?Wilber Jim[eé]nez Mendoza'),
+            ('Vicerrector Académico', '/vicerrectorado-academico', r'(?:Dr\.?\s+)?Mauro Huayapa Huaynacho'),
+            ('Vicerrector de Investigación', '/vicerrectorado-de-investigacion', r'(?:Dr\.?\s+)?Wilson J(?:hon|ohn) Mollocondo Flores'),
+        ]
+        found = []
+        for label, path, pattern in roles:
+            for number, text in by_path.get(path, []):
+                name = re.search(pattern, text, re.I)
+                if name:
+                    found.append((label, name.group(0), number))
+                    break
+        if len(found) == 3:
+            return 'Autoridades identificadas:\n\n' + '\n'.join(
+                f'- {label}: {name} [{number}]' for label, name, number in found)
+    return None
+
+
 def operational_service_answer(question, nodes):
     """Respuestas literales para horarios, rutas y pasos operativos del portal."""
     query = normalize(question)
@@ -168,7 +239,8 @@ def operational_service_answer(question, nodes):
 
     if medical and comedor and re.search(r'\b(compara|comparacion|diferencia)\b', query):
         comedor_number, comedor_text = next(((n, t) for n, t in comedor if re.search(r'\bcon\s+carn[eé]', t, re.I)), comedor[0])
-        medical_number, medical_text = next(((n, t) for n, t in medical if 'Triaje' in t), medical[0])
+        medical_number = medical[0][0]
+        medical_text = '\n'.join(text for _, text in medical)
         requirement = re.search(r'(?:ingreso|entrar)[^\n.]{0,80}\bcon\s+([^\n.]+)', comedor_text, re.I)
         identity = re.search(r'Presentar\s+([^\n.]+)', medical_text, re.I)
         triage = re.search(r'(Pasar obligatoriamente por[^\n.]+)', medical_text, re.I)
@@ -242,9 +314,13 @@ def catalog_and_audience_answer(question, nodes):
     wants_catalog = bool(re.search(r'\b(escuelas profesionales|carreras)\b', query) and
                          re.search(r'\b(catalogo|enumera|lista|cuales|que)\b', query))
     wants_audiences = 'estudiantes' in query and 'egresados' in query and re.search(r'\b(servicios|enlaces)\b', query)
+    grouped = {}
     for number, item in enumerate(nodes, 1):
         path = urlsplit(str(item.node.metadata.get('source_url', ''))).path.rstrip('/') or '/'
-        text = item.node.text
+        grouped.setdefault(path, []).append((number, item.node.text))
+    for path, entries in grouped.items():
+        number, _ = entries[0]
+        text = '\n'.join(text for _, text in entries)
         if wants_catalog and path == '/':
             block = re.search(r'^\s*- \[Escuelas profesionales\][^\n]*\n(.*?)(?=^\s*- \[Posgrado\])', text, re.S | re.M | re.I)
             if not block:
@@ -260,6 +336,25 @@ def catalog_and_audience_answer(question, nodes):
             if students and graduates:
                 return ('Servicios para estudiantes:\n' + '\n'.join(f'- {label} [{number}]' for label in students)
                         + '\n\nServicios para egresados:\n' + '\n'.join(f'- {label} [{number}]' for label in graduates))
+    return None
+
+
+def faculty_school_answer(question, nodes):
+    query = normalize(question)
+    if 'facultad de educacion y ciencias sociales' not in query or not re.search(r'\b(escuelas|carreras)\b', query):
+        return None
+    for number, item in enumerate(nodes, 1):
+        if urlsplit(str(item.node.metadata.get('source_url', '')).rstrip('/')).path != '/facultad-de-educacion-y-ciencias-sociales':
+            continue
+        text = item.node.text
+        match = re.search(r'A trav[eé]s de sus carreras de\s+(.+?),\s+la facultad', text, re.I | re.S)
+        if not match:
+            continue
+        labels = [re.sub(r'^y\s+', '', label.strip(), flags=re.I)
+                  for label in re.split(r',\s*', match.group(1)) if label.strip()]
+        if len(labels) >= 2:
+            return 'La Facultad de Educación y Ciencias Sociales menciona:\n\n' + '\n'.join(
+                f'- {label} [{number}]' for label in labels)
     return None
 
 
