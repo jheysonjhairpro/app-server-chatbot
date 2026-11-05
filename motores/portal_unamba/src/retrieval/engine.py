@@ -1,5 +1,5 @@
 """Motor RAG híbrido: vectorial + BM25, reranking opcional, memoria de conversación y fuentes."""
-
+from urllib.parse import urlsplit
 import json
 import logging
 import re

@@ -17,5 +17,5 @@ base de datos/
 
 # Corpus, OCR, respaldos e indices se mantienen solo en cada equipo.
 /datos/
-.env.*
-!.env.example
+.env
+chroma_db/
