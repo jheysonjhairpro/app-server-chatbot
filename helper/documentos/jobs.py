@@ -96,7 +96,7 @@ class Jobs:
     def start(self, operation, options=None):
         with self.lock:
             self.require_idle()
-            if operation not in {'extract', 'index', 'cleanup'}:
+            if operation not in {'extract', 'index', 'cleanup', 'pdf_index'}:
                 raise ValueError('OperaciÃ³n no vÃ¡lida.')
             options = options or {}
             if operation == 'index' and not self.store.paths() and options.get('clear_index') is not True:

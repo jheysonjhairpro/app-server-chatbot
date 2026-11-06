@@ -162,11 +162,6 @@ function Ensure-Browser {
     }
 }
 
-function Write-ViewConfig {
-    $code = 'import sys,base64;from pathlib import Path;p=Path(sys.argv[1])/"api"/"servidor.local.php";v=base64.b64encode((Path(sys.argv[2])/".env").as_posix().encode()).decode();p.write_text("<?php return base64_decode("+repr(v)+");\n",encoding="utf-8")'
-    Run-Checked $Python @('-c', $code, $UiRoot, $Root)
-}
-
 function Start-LocalProcess([string]$Name, [string]$Executable, [string[]]$Arguments, [string]$Folder, [string]$HealthUrl, [string]$Field, [string]$Expected = '') {
     if (Test-Health $HealthUrl $Field $Expected) {
         Write-Host "$Name ya esta disponible."
@@ -321,9 +316,6 @@ try {
     Ensure-Indexes
     # Apache se administra desde XAMPP. Este enlace no contiene credenciales.
     $UiRoot = $AppConfig.ui_root
-    if (Test-Path -LiteralPath (Join-Path $UiRoot 'api\config.php')) {
-        Write-ViewConfig
-    }
     if ($Accion -eq 'preparar') { Write-Host 'Dependencias, modelos e indices preparados.'; exit 0 }
     Ensure-Browser
     Start-LocalProcess 'api' $Python @('-B', (Join-Path $Root 'servidor\app.py')) $Root ($AppConfig.api + '/salud') 'ok'

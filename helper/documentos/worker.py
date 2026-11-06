@@ -25,6 +25,10 @@ def main():
         result = apply_preview(store, options.get('preview_id'))
         print(json.dumps(result, ensure_ascii=False), flush=True)
         print('Limpieza terminada con respaldos. Actualiza el índice para aplicar los cambios al chatbot.', flush=True)
+    elif operation == 'pdf_index':
+        import subprocess
+        print('Indexando PDF en la colección de Chroma del chatbot de PDF...', flush=True)
+        subprocess.run([sys.executable, '-u', '-m', 'scripts.ingest_pdf', '--solo-texto'], check=True)
     elif operation == 'index':
         from motores.portal_unamba.src.ingestion.indexer import build_index, build_empty_index
         fingerprint = store.fingerprint()

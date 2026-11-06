@@ -14,3 +14,5 @@ pydantic==2.13.5
 firecrawl-py==4.50.0
 playwright==1.63.0
 sentence-transformers==6.2.0
+reportlab==4.4.9
+beautifulsoup4==4.15.0

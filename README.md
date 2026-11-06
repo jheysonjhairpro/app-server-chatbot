@@ -20,19 +20,30 @@ Cerrar la consola no detiene los procesos. Un Ollama que ya estaba funcionando s
 
 ## Vista del usuario en XAMPP
 
-1. Coloca la vista en `C:\xampp\htdocs\app-chatbot-first-commit`.
+1. Coloca la vista en `C:\xampp\htdocs\app-chatbot`.
 2. En el `.env` del servidor, configura `UNAMBA_UI_DIR` con esa carpeta. Si usas otra ubicación, cambia ese valor.
-3. Ejecuta `iniciar.bat` del servidor. Si encuentra la vista, genera `api/servidor.local.php`, que contiene únicamente la ubicación del `.env` del servidor.
+3. Configura `BASE` y `TOKEN` en el `.env` de la vista. Ejecuta `iniciar.bat` del servidor.
 4. Inicia Apache desde el panel de XAMPP.
-5. Abre `http://localhost/app-chatbot-first-commit/`.
+5. Abre `http://localhost/app-chatbot/`.
 
 PHP necesita cURL y mbstring; las funciones académicas pueden necesitar sus extensiones y servicios externos. Ollama y los índices son locales. Historial académico y constancias dependen del sistema académico externo.
 
-Apache lee el puerto y el token del `.env` del servidor a través del enlace local. Las claves no se copian al JavaScript ni se entregan al navegador. El `.env` debe permanecer fuera de `htdocs` y ser legible por el usuario que ejecuta Apache. Si trasladas el servidor, vuelve a ejecutar su lanzador para actualizar el enlace. También puedes configurar `UNAMBA_ENV_FILE` en el entorno de Apache como alternativa al enlace generado.
+PHP lee `BASE` y `TOKEN` del `.env` de la vista. Apache debe bloquear el acceso HTTP a ese archivo mediante `.htaccess`; también puedes configurar `UNAMBA_ENV_FILE` en el entorno de Apache para usar un archivo fuera de `htdocs`. Las claves no se copian al JavaScript.
 
 La API puede funcionar sin la vista instalada: `UNAMBA_UI_DIR` se usa solo para enlazarla si existe. El servidor no depende de XAMPP ni de PHP para iniciar. Si Apache usa otro puerto o cambias el nombre de la carpeta, ajusta la URL del navegador.
 
 ## Uso del chatbot en la vista
+
+### Crear FUT
+
+El modo **Crear FUT** guía al solicitante por los campos del Formulario Único de
+Trámite, propone una fundamentación con `qwen2.5:7b`, permite revisar y
+corregir los datos y entrega un PDF para firmar. Los tipos y responsables de
+referencia están en `motores/fut_unamba/catalogo.json`; se indexan en la
+colección independiente `Fut_UnambaDB` con `qwen3-embedding:0.6b`. Ejecuta
+`.\.venv\Scripts\python.exe -m motores.fut_unamba.catalogo` después de editar
+el catálogo. El nombre del responsable tomado del ejemplo proporcionado debe
+confirmarse antes de presentar cualquier FUT.
 
 La vista dispone de Portal Web, Normativas / PDF y Consultas universitarias. Las respuestas de portal y PDF aparecen en streaming. Las cuatro preguntas destacadas del portal priorizan carreras, Beca Permanencia, trámites y pagos virtuales.
 
@@ -59,6 +70,7 @@ app-server-chatbot-version/
   motores/
     portal_unamba/              Extracción, chunking y respuestas del portal
     pdf/                        Recuperación y respuestas de PDF
+    fut_unamba/                 Asistente FUT, catálogo Chroma y generación PDF
   helper/documentos/            Panel documental opcional, con sus recursos web
   compartido/documentos.py      Almacenamiento, respaldos y bloqueo compartidos
   configuracion/                Carga del .env y configuración de los componentes
@@ -72,10 +84,10 @@ app-server-chatbot-version/
   herramientas/poppler/         Utilidades para procesar PDF
   registros/                    Diagnóstico y estado de procesos, regenerables
 
-C:/xampp/htdocs/app-chatbot-first-commit/
+C:/xampp/htdocs/app-chatbot/
   index.php                     Vista del usuario
   api/                          Puente PHP y servicios académicos
-  api/servidor.local.php         Enlace local al .env, generado por el servidor
+  .env                           BASE y TOKEN para el puente PHP
   assets/                       Recursos locales de la vista
 ```
 

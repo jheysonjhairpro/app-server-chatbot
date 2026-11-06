@@ -14,6 +14,7 @@ registros/
 datos/portal/admin/
 datos/portal/crawl/
 base de datos/
+motores/fut_unamba/chroma/
 
 # Corpus, OCR, respaldos e indices se mantienen solo en cada equipo.
 /datos/

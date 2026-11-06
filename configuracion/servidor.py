@@ -30,3 +30,7 @@ OCR_MODEL = os.getenv("PDF_OCR_MODEL", "seriouswebby/paddleocr-vl-1.6:latest")
 PDF_ORIGINALS_DIR = ruta("PDF_ORIGINALS_DIR", "datos/pdf/originales")
 PDF_TEXT_DIR = ruta("PDF_TEXT_DIR", "datos/pdf/texto_extraido")
 PDF_POPPLER_DIR = ruta("PDF_POPPLER_DIR", "herramientas/poppler/Library/bin")
+
+# Asistente de Formulario Único de Trámite.
+FUT_DIR = ruta("FUT_INDEX_DIR", "motores/fut_unamba/chroma")
+FUT_COLLECTION = os.getenv("FUT_COLLECTION", "Fut_UnambaDB")

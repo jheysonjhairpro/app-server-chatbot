@@ -1,8 +1,8 @@
 'use strict';
 const $ = id => document.getElementById(id);
-const state = {token:'', documents:[], document:null, dirty:false, busy:false, active:null, jobs:[], selectedJob:null, fingerprint:null, page:'documents', loading:0};
-const titles = {documents:['Biblioteca de documentos','Organiza las fuentes que dan conocimiento a tu chatbot.'],extraction:['Extraer páginas web','Convierte las páginas de la universidad en fuentes para el chatbot.'],activity:['Centro de actividad','Sigue el progreso de tus extracciones e indexaciones.'],trash:['Documentos en la papelera','Recupera contenido eliminado y conserva el control de tu biblioteca.']};
-const operationName = operation => ({index:'Actualización del índice',extract:'Extracción de páginas',cleanup:'Limpieza de documentos'}[operation]||operation);
+const state = {token:'', documents:[], document:null, dirty:false, busy:false, active:null, jobs:[], selectedJob:null, fingerprint:null, page:'pdf-chroma', loading:0};
+const titles = {documents:['Biblioteca de documentos','Organiza las fuentes que dan conocimiento a tu chatbot.'],'pdf-chroma':['Biblioteca PDF de Chroma','Consulta y administra los fragmentos del chatbot de PDF.'],extraction:['Extraer páginas web','Convierte las páginas de la universidad en fuentes para el chatbot.'],activity:['Centro de actividad','Sigue el progreso de tus extracciones e indexaciones.'],trash:['Documentos en la papelera','Recupera contenido eliminado y conserva el control de tu biblioteca.']};
+const operationName = operation => ({index:'Actualización del índice',pdf_index:'Indexación de PDF en Chroma',extract:'Extracción de páginas',cleanup:'Limpieza de documentos'}[operation]||operation);
 const labels = {running:'En curso',stopping:'Deteniendo',succeeded:'Completado',failed:'Con errores',cancelled:'Detenido',interrupted:'Interrumpido'};
 let toastTimer, searchTimer, previewTimer, polling = false;
 
@@ -22,7 +22,7 @@ async function action(fn){try{return await fn();}catch(error){notify(error.messa
 function mayLeave(){return !state.dirty || window.confirm('Tienes cambios sin guardar. ¿Quieres descartarlos?');}
 function setDirty(value){state.dirty=value;$('saved-state').textContent=value?'Cambios sin guardar':'Guardado';$('saved-state').classList.toggle('unsaved',value);$('save-button').disabled=state.busy||!value;$('revert-button').disabled=!value;}
 function setBusy(active){state.active=active;state.busy=!!active;document.querySelectorAll('[data-mutate]').forEach(button=>button.disabled=state.busy);$('cleanup-apply').disabled=state.busy||!cleanupPreview?.changes.length;$('editor').readOnly=state.busy;$('save-button').disabled=state.busy||!state.dirty;$('activity-dot').hidden=!active;$('running-banner').hidden=!active;$('cancel-job').hidden=!active||active.operation!=='extract'||active.status!=='running';if(active)$('running-title').textContent=operationName(active.operation);}
-function navigate(page){state.page=page;document.querySelectorAll('.page-section').forEach(section=>section.hidden=section.id!==`page-${page}`);document.querySelectorAll('[data-page]').forEach(button=>button.classList.toggle('active',button.dataset.page===page));$('page-title').textContent=titles[page][0];$('page-subtitle').textContent=titles[page][1];if(page==='trash')action(loadTrash);if(page==='activity')action(refreshJobs);}
+function navigate(page){state.page=page;document.querySelectorAll('.page-section').forEach(section=>section.hidden=section.id!==`page-${page}`);document.querySelectorAll('[data-page]').forEach(button=>button.classList.toggle('active',button.dataset.page===page));$('page-title').textContent=titles[page][0];$('page-subtitle').textContent=titles[page][1];$('index-button').hidden=page==='pdf-chroma';if(page==='trash')action(loadTrash);if(page==='activity')action(refreshJobs);if(page==='pdf-chroma')action(loadPdfSources);}
 
 async function loadDocuments(){const sequence=state.listRequest=(state.listRequest||0)+1;const result=await api('/api/documents?q='+encodeURIComponent($('search').value));if(sequence!==state.listRequest)return;state.documents=result.documents;renderDocuments();$('file-errors').hidden=!result.errors.length;$('file-errors').textContent=result.errors.map(r=>`${r.path}: ${r.error}`).join(' · ');}
 function renderDocuments(){const list=$('document-list');list.replaceChildren();$('list-count').textContent=state.documents.length;for(const doc of state.documents){const row=el('button','document-row'+(state.document?.path===doc.path?' selected':''));row.type='button';const icon=el('span','doc-icon',doc.path.toLowerCase().endsWith('.md')?'MD':'TXT');const info=el('span','doc-info');info.append(el('span','doc-title',doc.title),el('span','doc-origin',doc.url?origin(doc.url):doc.path));row.append(icon,info,el('span','doc-size',size(doc.size)));row.title=doc.path;row.addEventListener('click',()=>action(()=>openDocument(doc.path)));list.append(row);}if(!state.documents.length)list.append(el('p','empty',$('search').value?'No hay documentos que coincidan con la búsqueda.':'Tu biblioteca está lista para recibir documentos. Extrae páginas, importa archivos o crea uno nuevo.'));}
@@ -85,7 +85,7 @@ $('cancel-job').addEventListener('click',()=>action(async()=>{if(!window.confirm
 window.addEventListener('beforeunload',event=>{if(state.dirty){event.preventDefault();event.returnValue='';}});
 document.addEventListener('keydown',event=>{if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==='s'&&state.page==='documents'){event.preventDefault();if(!document.querySelector('dialog[open]'))action(saveDocument);}if(event.key==='/'&&!['INPUT','TEXTAREA'].includes(document.activeElement?.tagName)&&!document.querySelector('dialog[open]')){event.preventDefault();navigate('documents');$('search').focus();}});
 async function poll(){if(polling)return;polling=true;try{await refreshStatus();if(state.active||state.page==='activity')await refreshJobs();}catch(error){notify('No se pudo conectar con el panel. Comprueba que siga abierto en la terminal.',true);}finally{polling=false;}}
-action(async()=>{state.token=(await api('/api/session')).token;await loadDocuments();await refreshStatus();await refreshJobs();setInterval(poll,2500);});
+action(async()=>{state.token=(await api('/api/session')).token;await loadPdfSources();await loadDocuments();await refreshStatus();await refreshJobs();navigate('pdf-chroma');setInterval(poll,2500);});
 
 let cleanupPreview = null, cleanupRequest = 0;
 async function showCleanup(){
@@ -105,4 +105,96 @@ $('cleanup-apply').addEventListener('click',()=>action(async()=>{
   $('cleanup-apply').disabled=true;
   try{const job=await api('/api/cleanup/apply','POST',{preview_id:cleanupPreview.id});state.selectedJob=job.id;cleanupPreview=null;$('cleanup-dialog').close();setBusy(job);navigate('activity');await refreshJobs();notify('Limpieza iniciada con respaldos. Al terminar, actualiza el índice.');}
   catch(error){cleanupPreview=null;throw error;}
+}));
+
+const originalSetMode=setMode;
+setMode=function(mode){
+  if(mode!=='fragments')originalSetMode(mode);
+  $('editor').hidden=mode!=='edit';$('preview').hidden=mode!=='preview';$('fragments').hidden=mode!=='fragments';
+  $('mode-edit').classList.toggle('selected',mode==='edit');$('mode-preview').classList.toggle('selected',mode==='preview');$('mode-fragments').classList.toggle('selected',mode==='fragments');
+  if(mode==='fragments')action(loadFragments);
+};
+async function loadFragments(){
+  if(!state.document)return;
+  const path=state.document.path, box=$('fragments');box.replaceChildren();
+  const result=await api('/api/fragments?path='+encodeURIComponent(path));
+  if(state.document?.path!==path)return;
+  if(!result.items.length){box.append(el('p','empty','Aún no hay fragmentos publicados para este documento. Actualiza el índice para incorporarlo a Chroma.'));return;}
+  box.append(el('div','fragments-summary',`${result.total} fragmentos indexados · Los cambios del editor se publican al actualizar el índice.`));
+  for(const item of result.items){const card=el('article','fragment-card');card.append(el('strong','',`Fragmento ${Number(item.metadata.chunk_index||0)+1}`));if(item.metadata.header_path)card.append(el('small','',item.metadata.header_path));card.append(el('p','',item.text||''));box.append(card);}
+}
+$('mode-fragments').addEventListener('click',()=>setMode('fragments'));
+async function importPdfs(files){
+  if(!files.length||state.busy||!mayLeave())return;
+  let done=0,last=null;const errors=[];
+  for(const file of files){try{
+    if(!/\.pdf$/i.test(file.name)||file.size>25*1024*1024)throw new Error('Solo PDF de hasta 25 MB.');
+    const response=await fetch('/api/pdf',{method:'POST',headers:{'Content-Type':'application/pdf','X-Admin-Token':state.token,'X-Filename':encodeURIComponent(file.name)},body:file});
+    const result=await response.json();if(!response.ok)throw new Error(result.error||`Error ${response.status}`);
+    done++;last=result.source;
+  }catch(error){errors.push(`${file.name}: ${error.message}`);}}
+  $('pdf-input').value='';await loadPdfSources();if(last)selectedPdf=last;
+  if(done){
+    const health=await api('/api/health');
+    if(health.online&&health.embedding_ready){const job=await api('/api/pdf-index','POST',{});state.selectedJob=job.id;setBusy(job);navigate('activity');notify(`${done} PDF importado(s). Indexación en Chroma iniciada.${errors.length?' '+errors.join(' · '):''}`,!!errors.length);return;}
+  }
+  notify(`${done} PDF importado(s). ${done?'Inicia Ollama y actualiza el índice para publicarlos en Chroma.':''}${errors.length?' '+errors.join(' · '):''}`,!!errors.length);
+}
+const pdfDrop=$('pdf-drop');
+$('pdf-select').addEventListener('click',event=>{event.stopPropagation();$('pdf-input').click();});
+pdfDrop.addEventListener('click',()=> $('pdf-input').click());
+pdfDrop.addEventListener('keydown',event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();$('pdf-input').click();}});
+$('pdf-input').addEventListener('change',()=>action(()=>importPdfs([...$('pdf-input').files])));
+for(const name of ['dragenter','dragover'])pdfDrop.addEventListener(name,event=>{event.preventDefault();pdfDrop.classList.add('dragging');});
+for(const name of ['dragleave','drop'])pdfDrop.addEventListener(name,event=>{event.preventDefault();pdfDrop.classList.remove('dragging');});
+pdfDrop.addEventListener('drop',event=>action(()=>importPdfs([...event.dataTransfer.files])));
+
+let pdfSources=[], selectedPdf=null;
+async function loadPdfSources(){
+  const data=await api('/api/pdf-sources');pdfSources=data.sources;
+  $('pdf-source-count').textContent=pdfSources.length;$('pdf-nav-count').textContent=pdfSources.length;
+  $('pdf-collection-info').textContent=`${data.collection} · ${data.total_chunks.toLocaleString('es-PE')} fragmentos en Chroma`;
+  renderPdfSources();
+}
+function renderPdfSources(){
+  const box=$('pdf-source-list'), query=$('pdf-search').value.toLocaleLowerCase();box.replaceChildren();
+  for(const source of pdfSources.filter(row=>(row.source+' '+row.title).toLocaleLowerCase().includes(query))){
+    const row=el('button','document-row'+(selectedPdf===source.source?' selected':''));
+    const info=el('span','doc-info');info.append(el('span','doc-title',source.title),el('span','doc-origin',`${source.source} · ${source.pages} páginas`));
+    row.append(el('span','doc-icon','PDF'),info,el('span','doc-size',String(source.chunks)));
+    row.addEventListener('click',()=>action(()=>openPdfSource(source.source)));box.append(row);
+  }
+  if(!box.childNodes.length)box.append(el('p','empty','No hay PDF que coincidan con la búsqueda.'));
+}
+async function openPdfSource(source){
+  selectedPdf=source;const data=await api('/api/pdf-chunks?source='+encodeURIComponent(source));
+  if(selectedPdf!==source)return;
+  $('pdf-detail-empty').hidden=true;$('pdf-detail').hidden=false;
+  $('pdf-detail-title').textContent=source;$('pdf-detail-meta').textContent=`${data.items.length} fragmentos en Chroma`;
+  const box=$('pdf-chunk-list');box.replaceChildren();
+  for(const item of data.items){
+    const card=el('article','fragment-card');const heading=el('div','fragment-heading');
+    heading.append(el('strong','',`Página ${item.metadata.page||'—'} · fragmento ${item.metadata.chunk||'—'}`));
+    const edit=el('button','button small','Editar'), remove=el('button','button danger small','Eliminar');heading.append(edit,remove);
+    const content=el('p','',item.text), editor=el('textarea');editor.value=item.text;editor.hidden=true;
+    card.append(heading,content,editor);box.append(card);
+    edit.addEventListener('click',()=>action(async()=>{
+      if(editor.hidden){editor.hidden=false;content.hidden=true;edit.textContent='Guardar';editor.focus();return;}
+      const result=await api('/api/pdf-chunk','PUT',{id:item.id,text:editor.value,version:item.version});
+      item.text=result.text;item.version=result.version;content.textContent=result.text;editor.hidden=true;content.hidden=false;edit.textContent='Editar';notify('Fragmento y embedding actualizados en Chroma.');
+    }));
+    remove.addEventListener('click',()=>action(async()=>{
+      if(!window.confirm('¿Eliminar este fragmento de Chroma?'))return;
+      await api('/api/pdf-chunk','DELETE',{id:item.id,version:item.version});card.remove();notify('Fragmento eliminado de Chroma.');await loadPdfSources();
+    }));
+  }
+  renderPdfSources();
+}
+$('pdf-search').addEventListener('input',renderPdfSources);
+$('pdf-refresh').addEventListener('click',()=>action(loadPdfSources));
+$('pdf-index').addEventListener('click',()=>action(async()=>{const job=await api('/api/pdf-index','POST',{});state.selectedJob=job.id;setBusy(job);navigate('activity');notify('Indexación de PDF iniciada. Sigue el progreso en Actividad.');}));
+$('pdf-delete-source').addEventListener('click',()=>action(async()=>{
+  if(!selectedPdf||!window.confirm(`¿Eliminar todos los fragmentos de «${selectedPdf}» de Chroma?`))return;
+  const result=await api('/api/pdf-source','DELETE',{source:selectedPdf});selectedPdf=null;$('pdf-detail').hidden=true;$('pdf-detail-empty').hidden=false;
+  await loadPdfSources();notify(`${result.deleted} fragmentos eliminados de Chroma.`);
 }));

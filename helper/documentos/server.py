@@ -9,7 +9,7 @@ import urllib.request
 import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import parse_qs, urlsplit
+from urllib.parse import parse_qs, urlsplit, unquote
 
 from helper.documentos.jobs import Jobs
 from compartido.documentos import DocumentStore, ConflictError, instance_lock
@@ -114,6 +114,17 @@ class Handler(BaseHTTPRequestHandler):
                     return self.send(store.list(query.get('q', [''])[0]))
                 if parsed.path == '/api/document':
                     return self.send(store.read(name))
+                if parsed.path == '/api/fragments':
+                    from helper.documentos.pdf_library import fragments
+                    if name:
+                        store.path(name)
+                    return self.send(fragments(name or None))
+                if parsed.path == '/api/pdf-sources':
+                    from helper.documentos.pdf_chroma import sources
+                    return self.send(sources())
+                if parsed.path == '/api/pdf-chunks':
+                    from helper.documentos.pdf_chroma import chunks
+                    return self.send(chunks(query.get('source', [''])[0]))
                 if parsed.path == '/api/cleanup/diff':
                     from helper.documentos.cleanup import preview_diff
                     with jobs.lock:
@@ -146,6 +157,14 @@ class Handler(BaseHTTPRequestHandler):
                         return self.send({'online': False, 'embedding_ready': False, 'models': []})
                 return self.send({'error': 'Ruta no encontrada.'}, 404)
             size = int(self.headers.get('Content-Length', '0'))
+            if parsed.path == '/api/pdf' and method == 'POST':
+                from helper.documentos.pdf_library import import_pdf, MAX_PDF
+                if size <= 0 or size > MAX_PDF:
+                    return self.send({'error': 'El PDF debe pesar como máximo 25 MB.'}, 413)
+                data = self.rfile.read(size)
+                with jobs.lock:
+                    jobs.require_idle()
+                    return self.send(import_pdf(store, unquote(self.headers.get('X-Filename', '')), data), 201)
             if size <= 0 or size > 6 * 1024 * 1024:
                 return self.send({'error': 'La solicitud debe tener contenido y no superar 6 MB.'}, 413)
             payload = json.loads(self.rfile.read(size))
@@ -165,6 +184,15 @@ class Handler(BaseHTTPRequestHandler):
                     return self.send(jobs.start('cleanup', {'preview_id': record['id']}), 202)
                 if parsed.path == '/api/documents' and method == 'POST':
                     return self.send(store.save(payload.get('path'), payload.get('content'), create=True), 201)
+                if parsed.path == '/api/pdf-chunk' and method == 'PUT':
+                    from helper.documentos.pdf_chroma import update_chunk
+                    return self.send(update_chunk(payload.get('id'), payload.get('text'), payload.get('version')))
+                if parsed.path == '/api/pdf-chunk' and method == 'DELETE':
+                    from helper.documentos.pdf_chroma import delete_chunk
+                    return self.send(delete_chunk(payload.get('id'), payload.get('version')))
+                if parsed.path == '/api/pdf-source' and method == 'DELETE':
+                    from helper.documentos.pdf_chroma import delete_source
+                    return self.send(delete_source(payload.get('source')))
                 if parsed.path == '/api/document' and method == 'PUT':
                     return self.send(store.save(name, payload.get('content'), payload.get('version')))
                 if parsed.path == '/api/document' and method == 'DELETE':
@@ -175,6 +203,8 @@ class Handler(BaseHTTPRequestHandler):
                     return self.send(jobs.start('extract', validate_extraction(payload)), 202)
                 if parsed.path == '/api/index' and method == 'POST':
                     return self.send(jobs.start('index', {'clear_index': payload.get('clear_index') is True}), 202)
+                if parsed.path == '/api/pdf-index' and method == 'POST':
+                    return self.send(jobs.start('pdf_index'), 202)
                 return self.send({'error': 'Ruta no encontrada.'}, 404)
         except ConflictError as exc:
             self.send({'error': str(exc)}, 409)

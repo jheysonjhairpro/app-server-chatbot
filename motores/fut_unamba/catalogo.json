@@ -1,0 +1,38 @@
+[
+  {
+    "id": "filtro_similitud",
+    "tipo": "Constancia de filtro de similitud",
+    "descripcion": "Solicitud de constancia de filtro de similitud para un proyecto de tesis.",
+    "encargado": "",
+    "cargo": "",
+    "fuente": "Tipo de solicitud de ejemplo; destinatario a buscar en directorio oficial",
+    "destinatario_confirmado": false
+  },
+  {
+    "id": "constancia_estudios",
+    "tipo": "Constancia de estudios",
+    "descripcion": "Solicitud de emisión de una constancia de estudios. La dependencia y sus requisitos deben confirmarse.",
+    "encargado": "",
+    "cargo": "",
+    "fuente": "Tipo de solicitud de ejemplo; verificar requisitos con UNAMBA",
+    "destinatario_confirmado": false
+  },
+  {
+    "id": "rectificacion_datos",
+    "tipo": "Rectificación de datos académicos",
+    "descripcion": "Solicitud de corrección de datos académicos. La dependencia y sus requisitos deben confirmarse.",
+    "encargado": "",
+    "cargo": "",
+    "fuente": "Tipo de solicitud de ejemplo; verificar requisitos con UNAMBA",
+    "destinatario_confirmado": false
+  },
+  {
+    "id": "solicitud_libre",
+    "tipo": "Otro trámite universitario",
+    "descripcion": "Formulario Único de Trámite para una solicitud indicada por el estudiante.",
+    "encargado": "",
+    "cargo": "",
+    "fuente": "Formato FUT proporcionado como referencia",
+    "destinatario_confirmado": false
+  }
+]
