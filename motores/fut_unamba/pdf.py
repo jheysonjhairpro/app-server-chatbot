@@ -43,7 +43,7 @@ def _write(c, value, x, y, width, *, size=8.5, max_lines=1, leading=11):
 
 def _summary_in_box(c, value):
     lines = _lines(value, 224, 8.5, 2)
-    first_baseline = 660 if len(lines) == 1 else 668
+    first_baseline = 668
     c.setFont(FONT, 8.5)
     for index, line in enumerate(lines):
         c.drawString(315, first_baseline - index * 14, line)
@@ -71,7 +71,7 @@ def render(data):
     _write(c, data.get('departamento'), 427, 430, 100, size=8)
     _write(c, data.get('telefono'), 115, 409, 80, size=8)
     _write(c, data.get('celular'), 275, 409, 75, size=8)
-    _write(c, data.get('correo'), 420, 409, 110, size=8)
+    _write(c, data.get('correo'), 426, 409, 112, size=8)
     _write(c, data.get('fundamentacion'), 58, 331, 463, size=8.5, max_lines=4, leading=17)
     for index, item in enumerate((data.get('adjuntos') or [])[:12]):
         col, row = divmod(index, 6)

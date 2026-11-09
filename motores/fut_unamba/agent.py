@@ -13,6 +13,7 @@ import ollama
 from configuracion import servidor as config
 from motores.fut_unamba import catalogo
 from motores.fut_unamba import funcionarios
+from motores.fut_unamba import contexto_fut
 from motores.fut_unamba.pdf import render
 
 SESSION_TTL = 3600
@@ -137,6 +138,10 @@ def _school(value):
 def _summary(value, type_id):
     plain = _plain(value)
     if type_id == 'constancia_estudios' and any(word in plain for word in ('estudios', 'constan', 'constn', 'soncantica')):
+        if 'bachiller' in plain:
+            return 'Solicito una constancia de estudios para continuar mi trámite de bachiller.'
+        if 'trabaj' in plain or 'empleo' in plain:
+            return 'Solicito una constancia de estudios para presentarla en un proceso laboral.'
         if 'practic' in plain and 'comedor' in plain:
             return 'Solicito una constancia de estudios para acceder al comedor universitario y realizar mis prácticas preprofesionales.'
         if 'practic' in plain:
@@ -159,6 +164,8 @@ class Conversation:
     candidate: dict = field(default_factory=dict)
     draft: str = ''
     reason: str = ''
+    details: str = ''
+    prefilled: set = field(default_factory=set)
     updated: float = field(default_factory=time.monotonic)
 
 
@@ -214,6 +221,9 @@ def _validate(key, value):
 
 
 def _polish(reason, summary, detailed=False):
+    grounded = contexto_fut.compose_reason(summary, reason, '')
+    if grounded:
+        return grounded
     if 'constancia de estudios' in _plain(summary):
         plain = _plain(reason + ' ' + summary)
         purposes = []
@@ -257,12 +267,18 @@ def _review(data):
             f'Trámite: {data.get("tipo", "")}\nPedido: {data["resumen"]}\n'
             f'Destinatario: {data["destinatario"]} · {data["cargo"]}\n'
             f'Solicitante: {data["nombre"]} · DNI terminado en {data["dni"][-4:]}\n'
+            f'Escuela: {data.get("escuela") or "No indicada"} · Código: {data.get("codigo") or "No indicado"}\n'
+            f'Domicilio: {data.get("direccion") or "No indicado"} · {data.get("distrito", "")}, {data.get("provincia", "")}, {data.get("departamento", "")}\n'
+            f'Contacto: {data.get("celular") or "No indicado"} · {data.get("correo") or "Correo no indicado"}\n'
             f'Fundamentación: {data["fundamentacion"]}\nAdjuntos: {attachments}\n'
+            f'Folios: {data.get("folios") or "Por completar"}\n'
             'Escribe /generar para descargar el FUT. Para corregir: campo: nuevo valor (por ejemplo, destinatario: Nombre actual).')
 
 
 def _advance(state, key):
     index = FIELD_KEYS.index(key) + 1
+    while index < len(FIELDS) and FIELD_KEYS[index] in state.prefilled:
+        index += 1
     if index == len(FIELDS):
         issue = _consistency(state.data)
         if issue:
@@ -327,12 +343,35 @@ def respond(session_id, message):
             return _reply('Borrador descartado. Escribe /iniciar cuando quieras crear otro FUT.')
         state = SESSIONS.setdefault(session_id, Conversation())
         state.updated = time.monotonic()
+        extracted = {}
+        if state.step == 'nombre' or re.search(r'\b(correo|c[oó]digo|celular|n[uú]mero|dni)\b', text, re.I):
+            extracted = contexto_fut.extract_fields(text)
+            if len(extracted) < 2 and len(re.findall(r'\b(correo|c[oó]digo|celular|n[uú]mero|dni|direcci[oó]n)\b', text, re.I)) >= 2:
+                for field_key, field_value in contexto_fut.extract_ambiguous(text, state.data).items():
+                    extracted.setdefault(field_key, field_value)
+            for field_key, field_value in extracted.items():
+                if field_key not in {'nombre', 'correo', 'celular', 'codigo', 'dni', 'direccion'}:
+                    continue
+                try:
+                    cleaned = contexto_fut.clean_address(field_value) if field_key == 'direccion' else _validate(field_key, field_value)
+                except ValueError:
+                    continue
+                if field_key not in state.data or state.step == field_key:
+                    state.data[field_key] = cleaned
+                    state.prefilled.add(field_key)
         if state.step == 'tipo':
             rows = catalogo.entries()
             if text and text.casefold() not in {'/iniciar', '/tipos'} and not text.isdigit():
                 chosen = _type_from_text(text, rows)
                 if chosen:
-                    state.data = {'tipo': chosen['tipo'], 'tipo_id': chosen['id']}
+                    state.data.update({'tipo': chosen['tipo'], 'tipo_id': chosen['id']})
+                    if len(extracted) >= 2:
+                        state.data['resumen'] = _summary(text, chosen['id'])
+                        state.step = 'destinatario'
+                        role = contexto_fut.extract_role(text)
+                        if role:
+                            return _reply('Tomé tu solicitud y los datos personales que escribiste. ' + _suggest_official(state, role))
+                        return _reply(f'Entendí que solicitas «{chosen["tipo"]}» y anoté los datos personales que escribiste. {PROMPTS["destinatario"]}')
                     state.step = 'resumen'
                     return _reply(f'Entendido: «{chosen["tipo"]}». {PROMPTS["resumen"]}')
                 matches = catalogo.best_match(text)
@@ -350,7 +389,7 @@ def respond(session_id, message):
             if index < 0 or index >= len(choices):
                 return _reply(_types(choices))
             chosen = choices[index]
-            state.data = {'tipo': chosen['tipo'], 'tipo_id': chosen['id']}
+            state.data.update({'tipo': chosen['tipo'], 'tipo_id': chosen['id']})
             state.step = 'resumen'
             return _reply(f'Perfecto, trabajaremos en «{chosen["tipo"]}». ' + PROMPTS['resumen'])
         if state.step == 'destinatario_confirmar':
@@ -359,8 +398,8 @@ def respond(session_id, message):
                 state.data['cargo'] = state.candidate['cargo']
                 state.data['fuente_destinatario'] = state.candidate.get('fuente', '')
                 state.candidate = {}
-                state.step = 'nombre'
-                return _reply(f'Anoté {state.data["destinatario"]} y su cargo. ' + PROMPTS['nombre'])
+                next_prompt = _advance(state, 'cargo')
+                return _reply(f'Anoté {state.data["destinatario"]} y su cargo. ' + next_prompt)
             if _no(text):
                 state.step = 'destinatario'
                 state.candidate = {}
@@ -371,6 +410,12 @@ def respond(session_id, message):
             state.candidate = {}
             return _reply(_suggest_official(state, text))
         if state.step == 'fundamentacion_confirmar':
+            if contexto_fut.wants_rewrite(text):
+                improved = contexto_fut.compose_reason(state.data['resumen'], state.reason, state.details, polished=True)
+                if improved:
+                    state.draft = improved
+                    return _reply(f'Claro. Lo dejaría así, usando solo lo que me contaste:\n\n«{state.draft}»\n\n¿Ahora expresa bien tu motivo?')
+                return _reply('Claro. ¿Qué parte quieres mejorar o qué hecho falta? Dímelo y preparo otra versión sin inventar datos.')
             if _yes(text):
                 state.data['fundamentacion'] = state.draft
                 state.draft = ''
@@ -385,10 +430,11 @@ def respond(session_id, message):
             plain = _plain(text)
             no_details = plain in {'sin mas datos', 'no', 'ninguno', 'nada', 'no tengo mas datos', 'no se', 'omitir'}
             details = '' if no_details else text.strip()
+            state.details = details
             if len(details) > 450:
                 return _reply('Ese detalle es muy largo para el FUT. Resúmelo en una o dos frases, o escribe «sin más datos».')
-            state.draft = _polish(state.reason, state.data['resumen'])
-            if details:
+            state.draft = contexto_fut.compose_reason(state.data['resumen'], state.reason, details) or _polish(state.reason, state.data['resumen'])
+            if details and not contexto_fut.compose_reason(state.data['resumen'], state.reason, details):
                 detail_sentence = details.strip().rstrip('.!?')
                 detail_sentence = detail_sentence[0].upper() + detail_sentence[1:]
                 state.draft += ' ' + detail_sentence + '.'
@@ -439,8 +485,11 @@ def respond(session_id, message):
             return _reply(_suggest_official(state, text))
         if key == 'cargo' and _looks_like_role(text):
             return _reply(_suggest_official(state, text))
+        input_value = extracted.get(key, text)
+        if key == 'direccion':
+            input_value = contexto_fut.clean_address(input_value)
         try:
-            value = _validate(key, text)
+            value = _validate(key, input_value)
         except ValueError as exc:
             return _reply(str(exc) + '\n' + PROMPTS[key])
         if key == 'resumen':
@@ -462,6 +511,9 @@ def respond(session_id, message):
             return _reply(_detail_question(value, state.data['resumen']))
         state.data[key] = value
         next_prompt = _advance(state, key)
+        if key == 'nombre' and len(extracted) > 1:
+            captured = [label for field_key, label in (('correo', 'correo'), ('celular', 'celular'), ('codigo', 'código'), ('dni', 'DNI')) if field_key in extracted]
+            return _reply(f'Anoté tu nombre y también {", ".join(captured)}. Los podrás revisar antes de generar el FUT. ' + next_prompt)
         if key == 'resumen' and value != text:
             return _reply(f'Para que quede claro en el FUT, redacté el pedido así: «{value}». Si quieres cambiarlo, podrás corregirlo antes de generar. ' + next_prompt)
         if key == 'escuela' and value and value != text:
