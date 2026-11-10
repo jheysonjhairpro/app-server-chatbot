@@ -99,10 +99,8 @@ def _type_from_text(value, rows):
     return None
 
 
-def _school(value):
+def _known_school(value):
     plain = _plain(value)
-    if plain in {'omitir', 'no corresponde'}:
-        return ''
     aliases = [
         ({'administracion', 'admin'}, 0),
         ({'agroindustria', 'agroindustrial'}, 1),
@@ -115,8 +113,18 @@ def _school(value):
         ({'inicial', 'intercultural bilingue'}, 8),
     ]
     for words, index in aliases:
-        if any(word in plain for word in words):
+        if any(re.search(rf'\b{word}\b', plain) for word in words):
             return SCHOOLS[index]
+    return ''
+
+
+def _school(value):
+    plain = _plain(value)
+    if plain in {'omitir', 'no corresponde'}:
+        return ''
+    known = _known_school(value)
+    if known:
+        return known
     matches = [name for name in SCHOOLS if SequenceMatcher(None, plain, _plain(name).replace('escuela profesional de ', '')).ratio() >= 0.72]
     if len(matches) == 1:
         return matches[0]
@@ -355,11 +363,15 @@ def respond(session_id, message):
         state = SESSIONS.setdefault(session_id, Conversation())
         state.updated = time.monotonic()
         extracted = {}
-        if state.step == 'nombre' or re.search(r'\b(correo|c[oó]digo|celular|n[uú]mero|dni|tel[eé]fono|me llamo|mi nombre es)\b', text, re.I):
+        if state.step == 'nombre' or re.search(r'\b(correo|c[oó]digo|celular|n[uú]mero|dni|tel[eé]fono|me\s+llamo|mi\s+nombre\s+es)\b', text, re.I):
             extracted = contexto_fut.extract_fields(text)
             if len(extracted) < 2 and len(re.findall(r'\b(correo|c[oó]digo|celular|n[uú]mero|dni|direcci[oó]n)\b', text, re.I)) >= 2:
                 for field_key, field_value in contexto_fut.extract_ambiguous(text, state.data).items():
                     extracted.setdefault(field_key, field_value)
+        if state.step in {'tipo', 'destinatario_confirmar', *FIELD_KEYS}:
+            schools = {_known_school(mention) for mention in contexto_fut.school_mentions(text)} - {''}
+            if len(schools) == 1:
+                extracted['escuela'] = schools.pop()
         if state.step in {'tipo', 'resumen', 'nombre', 'direccion', 'distrito', 'provincia', 'departamento'}:
             extracted.update(contexto_fut.extract_domicile(text))
         if state.step in {'distrito', 'provincia'} and _plain(text) == 'abancay':
@@ -541,9 +553,10 @@ def respond(session_id, message):
             return _reply(_detail_question(value, state.data['resumen']))
         state.data[key] = value
         next_prompt = _advance(state, key)
-        if key == 'nombre' and len(extracted) > 1:
-            captured = [label for field_key, label in (('correo', 'correo'), ('celular', 'celular'), ('codigo', 'código'), ('dni', 'DNI')) if field_key in extracted]
-            return _reply(f'Anoté tu nombre y también {", ".join(captured)}. Los podrás revisar antes de generar el FUT. ' + next_prompt)
+        if key == 'nombre':
+            captured = [label for field_key, label in (('escuela', 'la escuela'), ('correo', 'el correo'), ('celular', 'el celular'), ('codigo', 'el código'), ('dni', 'el DNI')) if field_key in extracted]
+            if captured:
+                return _reply(f'Anoté tu nombre y también {", ".join(captured)}. Los podrás revisar antes de generar el FUT. ' + next_prompt)
         if key == 'resumen' and value != text:
             return _reply(f'Para que quede claro en el FUT, redacté el pedido así: «{value}». Si quieres cambiarlo, podrás corregirlo antes de generar. ' + next_prompt)
         if key == 'escuela' and value and value != text:

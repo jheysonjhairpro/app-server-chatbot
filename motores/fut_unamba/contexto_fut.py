@@ -8,8 +8,10 @@ import ollama
 from configuracion import servidor as config
 
 ABANCAY = {'distrito': 'Abancay', 'provincia': 'Abancay', 'departamento': 'Apurímac'}
+SCHOOL_CLAUSE = r'\b(?:soy\s+de\b|estudio\b(?:\s+en\b)?|(?:mi\s+)?(?:carrera|escuela(?:\s+profesional)?)\s*(?:es\b|:))'
 PERSONAL_CLAUSE = (r'\b(?:(?:mi\s+)?(?:correo|n[uú]mero|celular|tel[eé]fono|c[oó]digo|dni)\s*(?:es\b|:|(?=\d))|'
-                   r'(?:(?:yo\s+)?vivo\s+en|resido\s+en|soy\s+de|me\s+llamo|mi\s+nombre\s+es)\b)')
+                   r'(?:(?:yo\s+)?vivo\s+en|resido\s+en|me\s+llamo|mi\s+nombre\s+es)\b|'
+                   + SCHOOL_CLAUSE + r')')
 
 
 def plain(value):
@@ -45,14 +47,22 @@ def extract_fields(text):
     dni = re.search(r'\b(?:mi\s+)?dni\s*(?:es|:)?\s*(\d{8})\b', text, re.I)
     if dni:
         result['dni'] = dni.group(1)
-    explicit_name = re.search(r"\b(?:me\s+llamo|mi\s+nombre\s+es)\s+([A-Za-zÁÉÍÓÚÜÑáéíóúüñ' -]{5,90})", text, re.I)
-    start = explicit_name.group(1) if explicit_name else re.split(r'\b(?:mi\s+)?(?:correo|n[uú]mero|celular|tel[eé]fono|c[oó]digo|dni)\b', text, maxsplit=1, flags=re.I)[0]
-    start = re.split(r'\s*(?:[,;.]|\bmi\s+(?:correo|n[uú]mero|c[oó]digo|dni))\s*', start, maxsplit=1, flags=re.I)[0]
+    explicit_name = re.search(r'\b(?:me\s+llamo|mi\s+nombre\s+es)\s+', text, re.I)
+    start = text[explicit_name.end():] if explicit_name else text
+    start = re.split(PERSONAL_CLAUSE + r'|[,;.\n]', start, maxsplit=1, flags=re.I)[0]
+    start = re.sub(r'\s+y\s*$', '', start, flags=re.I)
     start = re.sub(r'^\s*(?:me\s+llamo|mi\s+nombre\s+es|soy)\s+', '', start, flags=re.I).strip(' ,;.')
     if len(start.split()) in (2, 3, 4, 5) and re.fullmatch(r"[A-Za-zÁÉÍÓÚÜÑáéíóúüñ' -]+", start):
         if not any(word in plain(start).split() for word in {'quiero', 'necesito', 'constancia', 'solicito', 'gracias', 'hola'}):
             result['nombre'] = start
     return result
+
+
+def school_mentions(text):
+    for marker in re.finditer(SCHOOL_CLAUSE, text, re.I):
+        value = re.split(PERSONAL_CLAUSE + r'|[,;.\n]', text[marker.end():], maxsplit=1, flags=re.I)[0]
+        if value.strip():
+            yield value.strip()
 
 
 def extract_role(text):
