@@ -7,6 +7,10 @@ import ollama
 
 from configuracion import servidor as config
 
+ABANCAY = {'distrito': 'Abancay', 'provincia': 'Abancay', 'departamento': 'Apurímac'}
+PERSONAL_CLAUSE = (r'\b(?:(?:mi\s+)?(?:correo|n[uú]mero|celular|tel[eé]fono|c[oó]digo|dni)\s*(?:es\b|:|(?=\d))|'
+                   r'(?:(?:yo\s+)?vivo\s+en|resido\s+en|soy\s+de|me\s+llamo|mi\s+nombre\s+es)\b)')
+
 
 def plain(value):
     value = unicodedata.normalize('NFKD', str(value).casefold())
@@ -52,8 +56,39 @@ def extract_fields(text):
 
 
 def extract_role(text):
-    match = re.search(r'\b(?:dirigid[oa]\s+a|para|al|a\s+la)\s+(?:(?:el|la|al)\s+)?((?:(?:encargad[oa]|jef[ea]|director[ao]|rector|decano)\b)[^,;.]{0,85})', text, re.I)
-    return match.group(1).strip() if match else ''
+    request = re.split(PERSONAL_CLAUSE, text, maxsplit=1, flags=re.I)[0]
+    match = re.search(r'\b(?:dirigid[oa]\s+a|para|al|a\s+la)\s+(?:(?:el|la|al)\s+)?((?:encargad[oa]|jef[ea]|director[ao]|rector(?:a)?|decano|decana)\b[^,;.]{0,85})', request, re.I)
+    return re.split(r'\s+(?:para\s+que|porque|por\s+que)\b', match[1], maxsplit=1, flags=re.I)[0].strip() if match else ''
+
+
+def extract_domicile(text):
+    result = {}
+    if re.search(r'\b(?:vivo en|resido en|soy de|distrito(?: de)?|provincia(?: de)?)\s*:?\s+abancay\b', plain(text)):
+        result.update(ABANCAY)
+    addresses = re.findall(
+        r'\b(?:vivo en|resido en|(?:mi\s+)?(?:direcci[oó]n|domicilio)\s*(?:es|:))\s+([^,;\n]+)', text, re.I)
+    # A message may mention the city and then give the street in a second clause.
+    for part in re.split(PERSONAL_CLAUSE, text, flags=re.I)[1:]:
+        match = re.match(r'\s*((?:urb\.?|urbanizaci[oó]n|av\.?|avenida|calle|jir[oó]n|jr\.?|pasaje)\s+[^,;\n]+)', part, re.I)
+        if match:
+            addresses.append(match[1])
+    for address in reversed(addresses):
+        address = re.split(PERSONAL_CLAUSE, address, maxsplit=1, flags=re.I)[0].strip(' ,;.')
+        address = re.sub(r'\s+y\s*$', '', address, flags=re.I)
+        if address and not re.fullmatch(r'abancay(?:\s+abancay)?(?:\s+apurimac)?', plain(address)):
+            result['direccion'] = clean_address(address)
+            break
+    return result
+
+
+def request_text(text):
+    request = re.split(PERSONAL_CLAUSE, text, maxsplit=1, flags=re.I)[0].strip(' ,;.')
+    if not re.search(r'\b(quiero|quisiera|solicito|necesito|me gustar[ií]a|pido)\b', request, re.I):
+        return ''
+    request = re.sub(r'^.*?\b(?:un\s+)?fut\b[^,;.]*?\bpara\s+(?:que\s+|(?=(?:solicitar|pedir|tramitar)\b))', '', request, count=1, flags=re.I)
+    if re.fullmatch(r'(?:quiero|quisiera|necesito|solicito)\s+(?:un\s+)?fut\b.*', request, re.I):
+        return ''
+    return request if len(request.split()) >= 3 else ''
 
 
 def extract_ambiguous(text, known):

@@ -87,7 +87,7 @@ def _confirm_candidate(value, candidate):
 
 def _type_from_text(value, rows):
     plain = _plain(value)
-    if 'estudios' in plain and ('constan' in plain or 'soncantica' in plain):
+    if re.search(r'\bestudi\w*\b', plain) and ('constan' in plain or 'soncantica' in plain):
         return next(row for row in rows if row['id'] == 'constancia_estudios')
     if 'similitud' in plain:
         return next(row for row in rows if row['id'] == 'filtro_similitud')
@@ -137,6 +137,8 @@ def _school(value):
 
 def _summary(value, type_id):
     plain = _plain(value)
+    if type_id == 'solicitud_libre' and re.search(r'\b(?:notas|calificaciones)\s+finales\b', plain) and not re.search(r'\b(?:rectific|correg|correcci|revis)\w*', plain):
+        return 'Solicito la entrega de mis calificaciones finales.'
     if type_id == 'constancia_estudios' and any(word in plain for word in ('estudios', 'constan', 'constn', 'soncantica')):
         if 'bachiller' in plain:
             return 'Solicito una constancia de estudios para continuar mi trámite de bachiller.'
@@ -200,8 +202,17 @@ def _validate(key, value):
         raise ValueError('No quiero poner «no sé» en tu FUT. Dime ese dato o cuéntame qué conoces para ayudarte.')
     if len(value) > (1200 if key == 'fundamentacion' else 250):
         raise ValueError('El texto es demasiado largo; resúmelo para que quepa en el FUT.')
+    if key == 'codigo':
+        value = re.sub(r'^c[oó]digo\s*:\s*', '', value, flags=re.I)
+    if key == 'celular':
+        value = re.sub(r'^\+51\s*', '', value)
+        value = re.sub(r'[\s-]', '', value)
     if key == 'dni' and not re.fullmatch(r'\d{8}', value):
         raise ValueError('El DNI debe tener exactamente 8 dígitos.')
+    if key == 'codigo' and not re.fullmatch(r'[a-zA-Z0-9-]{1,20}', value):
+        raise ValueError('Escribe solo el código de estudiante, sin el texto «Código», o «omitir».')
+    if key == 'celular' and not re.fullmatch(r'\d{7,9}', value):
+        raise ValueError('Escribe solo el número de contacto, de 7 a 9 dígitos, o «omitir».')
     if key == 'correo' and not re.fullmatch(r'[^\s@]+@[^\s@]+\.[^\s@]+', value):
         raise ValueError('Escribe un correo válido o «omitir».')
     if key == 'folios' and (not value.isdigit() or not 0 <= int(value) <= 9999):
@@ -344,41 +355,51 @@ def respond(session_id, message):
         state = SESSIONS.setdefault(session_id, Conversation())
         state.updated = time.monotonic()
         extracted = {}
-        if state.step == 'nombre' or re.search(r'\b(correo|c[oó]digo|celular|n[uú]mero|dni)\b', text, re.I):
+        if state.step == 'nombre' or re.search(r'\b(correo|c[oó]digo|celular|n[uú]mero|dni|tel[eé]fono|me llamo|mi nombre es)\b', text, re.I):
             extracted = contexto_fut.extract_fields(text)
             if len(extracted) < 2 and len(re.findall(r'\b(correo|c[oó]digo|celular|n[uú]mero|dni|direcci[oó]n)\b', text, re.I)) >= 2:
                 for field_key, field_value in contexto_fut.extract_ambiguous(text, state.data).items():
                     extracted.setdefault(field_key, field_value)
-            for field_key, field_value in extracted.items():
-                if field_key not in {'nombre', 'correo', 'celular', 'codigo', 'dni', 'direccion'}:
-                    continue
-                try:
-                    cleaned = contexto_fut.clean_address(field_value) if field_key == 'direccion' else _validate(field_key, field_value)
-                except ValueError:
-                    continue
-                if field_key not in state.data or state.step == field_key:
-                    state.data[field_key] = cleaned
-                    state.prefilled.add(field_key)
+        if state.step in {'tipo', 'resumen', 'nombre', 'direccion', 'distrito', 'provincia', 'departamento'}:
+            extracted.update(contexto_fut.extract_domicile(text))
+        if state.step in {'distrito', 'provincia'} and _plain(text) == 'abancay':
+            extracted.update(contexto_fut.ABANCAY)
+        if state.step == 'direccion' and re.fullmatch(r'(?:(?:vivo|resido) en |soy de )?abancay(?: apurimac)?', _plain(text)):
+            extracted.update(contexto_fut.ABANCAY, direccion='')
+        for field_key, field_value in list(extracted.items()):
+            try:
+                cleaned = field_value if field_key == 'direccion' and not field_value else _validate(field_key, field_value)
+            except ValueError:
+                del extracted[field_key]
+                continue
+            if field_key not in state.data or state.step == field_key:
+                state.data[field_key] = cleaned
+                state.prefilled.add(field_key)
         if state.step == 'tipo':
             rows = catalogo.entries()
             if text and text.casefold() not in {'/iniciar', '/tipos'} and not text.isdigit():
-                chosen = _type_from_text(text, rows)
+                request = contexto_fut.request_text(text)
+                chosen = _type_from_text(request or text, rows)
+                if request and not chosen:
+                    chosen = next(row for row in rows if row['id'] == 'solicitud_libre')
                 if chosen:
                     state.data.update({'tipo': chosen['tipo'], 'tipo_id': chosen['id']})
-                    if len(extracted) >= 2:
-                        state.data['resumen'] = _summary(text, chosen['id'])
+                    if request:
+                        summary = _summary(request, chosen['id'])
+                        state.data['resumen'] = summary[0].upper() + summary[1:]
                         state.step = 'destinatario'
                         role = contexto_fut.extract_role(text)
+                        understood = f'Anoté el pedido: «{state.data["resumen"].rstrip(".")}». '
                         if role:
-                            return _reply('Tomé tu solicitud y los datos personales que escribiste. ' + _suggest_official(state, role))
-                        return _reply(f'Entendí que solicitas «{chosen["tipo"]}» y anoté los datos personales que escribiste. {PROMPTS["destinatario"]}')
+                            return _reply(understood + _suggest_official(state, role))
+                        return _reply(understood + PROMPTS['destinatario'])
                     state.step = 'resumen'
                     return _reply(f'Entendido: «{chosen["tipo"]}». {PROMPTS["resumen"]}')
                 matches = catalogo.best_match(text)
                 choices = [next((row for row in rows if row['id'] == meta['id']), None) for meta, _ in matches]
                 state.options = [row for row in choices if row]
                 if state.options:
-                    return _reply(f'Entiendo que buscas un trámite relacionado con «{text}». ' + _types(state.options))
+                    return _reply(_types(state.options))
                 return _reply(_types(rows))
             choices = state.options or rows
             if not text.isdigit():
@@ -487,7 +508,11 @@ def respond(session_id, message):
             return _reply(_suggest_official(state, text))
         input_value = extracted.get(key, text)
         if key == 'direccion':
-            input_value = contexto_fut.clean_address(input_value)
+            input_value = contexto_fut.clean_address(input_value) or 'omitir'
+        if key == 'resumen':
+            if _yes(text) or re.fullmatch(r'\d+(?:[.)]\s*.+)?', text):
+                return _reply('Cuéntame qué documento o acción necesitas. Por ejemplo: «Solicito que me entreguen mis calificaciones finales».')
+            input_value = contexto_fut.request_text(text) or input_value
         try:
             value = _validate(key, input_value)
         except ValueError as exc:
@@ -499,10 +524,15 @@ def respond(session_id, message):
                 if marker in lowered or (row['id'] == 'rectificacion_datos' and 'rectific' in lowered):
                     if row['id'] != state.data.get('tipo_id'):
                         state.data['tipo'], state.data['tipo_id'] = row['tipo'], row['id']
-                        state.data[key] = value
+                        state.data[key] = _summary(value, row['id'])
                         return _reply(f'Por lo que escribiste, el trámite corresponde a «{row["tipo"]}». Lo ajusté en el borrador. ' + _advance(state, key))
                     break
             value = _summary(value, state.data.get('tipo_id'))
+            role = contexto_fut.extract_role(text)
+            if role:
+                state.data[key] = value
+                state.step = 'destinatario'
+                return _reply(f'Anoté el pedido: «{value.rstrip(".")}». ' + _suggest_official(state, role))
         if key == 'departamento' and _plain(value) == 'abancay':
             return _reply('Abancay es el distrito y la provincia que indicaste. Para el departamento, ¿corresponde «Apurímac»? Escribe «Apurímac» si es correcto.')
         if key == 'fundamentacion':

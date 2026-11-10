@@ -69,9 +69,9 @@ def render(data):
     _write(c, data.get('distrito'), 115, 430, 85, size=8)
     _write(c, data.get('provincia'), 277, 430, 76, size=8)
     _write(c, data.get('departamento'), 427, 430, 100, size=8)
-    _write(c, data.get('telefono'), 115, 409, 80, size=8)
-    _write(c, data.get('celular'), 275, 409, 75, size=8)
-    _write(c, data.get('correo'), 426, 409, 112, size=8)
+    _write(c, data.get('telefono'), 115, 405.5, 80, size=8)
+    _write(c, data.get('celular'), 276, 405.5, 74, size=8)
+    _write(c, data.get('correo'), 427, 405.5, 111, size=8)
     _write(c, data.get('fundamentacion'), 58, 331, 463, size=8.5, max_lines=4, leading=17)
     for index, item in enumerate((data.get('adjuntos') or [])[:12]):
         col, row = divmod(index, 6)
